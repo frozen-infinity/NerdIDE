@@ -1,0 +1,10 @@
+[package]
+name = "IDE"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+gtk = { version = "0.11.2", package = "gtk4", features = ["v4_22"] }
+sourceview5 = "0.11.0"
+glib = "0.22.5"
+gdk = "0.18.2"
