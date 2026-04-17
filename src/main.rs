@@ -1,15 +1,15 @@
+use gtk::Separator;
+use gtk::gio;
 use gtk::prelude::*;
 use gtk::{
-    Application, ApplicationWindow, Button, Box as GtkBox,
-    Orientation, ScrolledWindow, glib, FlowBox, gdk, CssProvider, STYLE_PROVIDER_PRIORITY_APPLICATION, MenuButton, HeaderBar
+    Application, ApplicationWindow, Box as GtkBox, Button, CssProvider, FlowBox, HeaderBar,
+    MenuButton, Orientation, STYLE_PROVIDER_PRIORITY_APPLICATION, ScrolledWindow, gdk, glib,
 };
-use std::fs;
-use gtk::Separator;
-use std::sync::{LazyLock, Mutex};
-use std::process::Command;
 use sourceview5 as sv;
-use gtk::gio;
 use sourceview5::prelude::*;
+use std::fs;
+use std::process::Command;
+use std::sync::{LazyLock, Mutex};
 const APP_ID: &str = "nerd.ide.gtk4rs";
 /*fn load_css() {
     let provider = CssProvider::new();
@@ -22,10 +22,10 @@ const APP_ID: &str = "nerd.ide.gtk4rs";
         STYLE_PROVIDER_PRIORITY_APPLICATION,
     );
 } */
+use sourceview5::Buffer;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
-use sourceview5::Buffer;
 
 fn install_autosave(buffer: &sv::Buffer, path: String) {
     let pending_save: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
@@ -67,73 +67,75 @@ fn install_autosave(buffer: &sv::Buffer, path: String) {
 fn install_br(view: &sv::View, buffer: &sv::Buffer) {
     let key = gtk::EventControllerKey::new();
     key.set_propagation_phase(gtk::PropagationPhase::Capture);
-
     let buffer = buffer.clone();
-
     key.connect_key_pressed(move |_, key, _keycode, state| {
         if state.contains(gdk::ModifierType::CONTROL_MASK)
             || state.contains(gdk::ModifierType::ALT_MASK)
         {
             return glib::Propagation::Proceed;
         }
-
-        println!("key = {:?}", key);
-
-        let insert_mark = buffer.get_insert();
-        let mut iter = buffer.iter_at_mark(&insert_mark);
-
-        // First: if we're on an existing closer, skip over it
-        let wanted_close = match key {
-            gdk::Key::parenright => Some(")"),
-            gdk::Key::bracketright => Some("]"),
-            gdk::Key::braceright => Some("}"),
-            gdk::Key::quotedbl => Some("\""),
-            gdk::Key::apostrophe => Some("'"),
+        let ch = match key {
+            gdk::Key::parenleft => "(",
+            gdk::Key::parenright => ")",
+            gdk::Key::bracketleft => "[",
+            gdk::Key::bracketright => "]",
+            gdk::Key::braceleft => "{",
+            gdk::Key::braceright => "}",
+            gdk::Key::quotedbl => "\"",
+            gdk::Key::apostrophe => "'",
+            _ => return glib::Propagation::Proceed,
+        };
+        let closing = match ch {
+            "(" => Some(")"),
+            "[" => Some("]"),
+            "{" => Some("}"),
+            "\"" => Some("\""),
+            "'" => Some("'"),
             _ => None,
         };
-
-        if let Some(wanted) = wanted_close {
-            let start = buffer.iter_at_mark(&insert_mark);
-            let mut end = start;
-            if end.forward_char() {
-                let next = buffer.text(&start, &end, false);
-                if next.as_str() == wanted {
-                    let mut jump = buffer.iter_at_mark(&insert_mark);
-                    jump.forward_char();
-                    buffer.place_cursor(&jump);
+        if ch != ")" && ch != "]" && ch != "}" {
+            if let Some(close) = closing {
+                if let Some(mark) = buffer.mark("insert") {
+                    let mut iter = buffer.iter_at_mark(&mark);
+                    buffer.begin_user_action();
+                    buffer.insert(&mut iter, ch);
+                    buffer.insert(&mut iter, close);
+                    iter.backward_char();
+                    buffer.place_cursor(&iter);
+                    buffer.end_user_action();
                     return glib::Propagation::Stop;
                 }
+                return glib::Propagation::Proceed;
             }
         }
-
-        // Then: opening pair insertion
-        let pair = match key {
-            gdk::Key::parenleft => Some("()"),
-            gdk::Key::bracketleft => Some("[]"),
-            gdk::Key::braceleft => Some("{}"),
-            gdk::Key::quotedbl => Some("\"\""),
-            gdk::Key::apostrophe => Some("''"),
-            _ => None,
-        };
-
-        if let Some(pair_text) = pair {
-            buffer.begin_user_action();
-            buffer.insert(&mut iter, pair_text);
-            iter.backward_char();
-            buffer.place_cursor(&iter);
-            buffer.end_user_action();
-            return glib::Propagation::Stop;
+        let insert_mark = buffer.get_insert();
+        let start = buffer.iter_at_mark(&insert_mark);
+        let mut end = start;
+        end.forward_char();
+        //if !end.forward_char() {
+          //  return glib::Propagation::Proceed;
+        //}
+        let next = buffer.text(&start, &end, false);
+        println!("next {}", next);
+        if next.as_str() == ch {
+            if let Some(mark) = buffer.mark("insert") {
+                let mut iter = buffer.iter_at_mark(&mark);
+                buffer.begin_user_action();
+                iter.forward_char();
+                println!("I should jump");
+                buffer.place_cursor(&iter);
+                buffer.end_user_action();
+                return glib::Propagation::Stop;
+            }
         }
-
         glib::Propagation::Proceed
     });
+    println!("I am adding this");
     view.add_controller(key);
 }
 
 fn main() -> glib::ExitCode {
-    let app = Application::builder()
-        .application_id(APP_ID)
-        .build();
+    let app = Application::builder().application_id(APP_ID).build();
     /*app.connect_startup(|_| {
         load_css();
     });*/
@@ -211,25 +213,23 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer) -> GtkBox {
         dialog.save(
             Some(&window2),
             None::<&gio::Cancellable>,
-            move |result| {
-                match result {
-                    Ok(file) => {
-                        if let Some(path) = file.path() {
-                            println!("Save path: {}", path.display());
-                            let start = buffer2.start_iter();
-                            let end = buffer2.end_iter();
-                            let text = buffer2.text(&start, &end, false);
-                            if let Err(err) = fs::write(&path, text.as_str()) {
-                                eprintln!("Failed to save: {err}");
-                            }
-                        } else {
-                            eprintln!("Selected location is not a local path");
-                            eprintln!("URI: {}", file.uri());
+            move |result| match result {
+                Ok(file) => {
+                    if let Some(path) = file.path() {
+                        println!("Save path: {}", path.display());
+                        let start = buffer2.start_iter();
+                        let end = buffer2.end_iter();
+                        let text = buffer2.text(&start, &end, false);
+                        if let Err(err) = fs::write(&path, text.as_str()) {
+                            eprintln!("Failed to save: {err}");
                         }
+                    } else {
+                        eprintln!("Selected location is not a local path");
+                        eprintln!("URI: {}", file.uri());
                     }
-                    Err(err) => {
-                        eprintln!("Save dialog canceled or failed: {err}");
-                    }
+                }
+                Err(err) => {
+                    eprintln!("Save dialog canceled or failed: {err}");
                 }
             },
         );
@@ -248,21 +248,19 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer) -> GtkBox {
         dialog.open(
             Some(&window_clone2),
             None::<&gio::Cancellable>,
-            move |result| {
-                match result {
-                    Ok(file) => {
-                        if let Some(path) = file.path() {
-                            let path_string = path.to_string_lossy().to_string();
-                            build_body(&window_for_dialog, false, &path_string);
-                            println!("Chosen file path: {}", path.display());
-                        } else {
-                            println!("Chosen file has no local path");
-                            println!("URI: {}", file.uri());
-                        }
+            move |result| match result {
+                Ok(file) => {
+                    if let Some(path) = file.path() {
+                        let path_string = path.to_string_lossy().to_string();
+                        build_body(&window_for_dialog, false, &path_string);
+                        println!("Chosen file path: {}", path.display());
+                    } else {
+                        println!("Chosen file has no local path");
+                        println!("URI: {}", file.uri());
                     }
-                    Err(err) => {
-                        eprintln!("File dialog canceled or failed: {err}");
-                    }
+                }
+                Err(err) => {
+                    eprintln!("File dialog canceled or failed: {err}");
                 }
             },
         );
@@ -271,10 +269,7 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer) -> GtkBox {
     window.add_action(&open_action);
     window.add_action(&save_as);
     window.add_action(&newfile);
-    let menu_button = MenuButton::builder()
-        .label("IDE")
-        .menu_model(&menu)
-        .build();
+    let menu_button = MenuButton::builder().label("IDE").menu_model(&menu).build();
     header.append(&menu_button);
     header
 }
@@ -296,11 +291,9 @@ fn build_body(window: &ApplicationWindow, file_tree: bool, file_path: &str) {
     loader.load_async(
         glib::Priority::DEFAULT,
         None::<&gio::Cancellable>,
-        move |result| {
-            match result {
-                Ok(()) => println!("Loaded"),
-                Err(err) => eprintln!("Load failed: {err}"),
-            }
+        move |result| match result {
+            Ok(()) => println!("Loaded"),
+            Err(err) => eprintln!("Load failed: {err}"),
         },
     );
     let view = sv::View::with_buffer(&buffer);
