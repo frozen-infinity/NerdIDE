@@ -10,6 +10,16 @@ use sourceview5::prelude::*;
 use std::fs;
 use std::process::Command;
 use std::sync::{LazyLock, Mutex};
+static TABS: LazyLock<Mutex<i32>> =
+    LazyLock::new(|| Mutex::new(0));
+
+fn set_path(x: i32) {
+    *TABS.lock().unwrap() = x;
+}
+
+fn get_path() -> i32 {
+    TABS.lock().unwrap().clone()
+}
 const APP_ID: &str = "nerd.ide.gtk4rs";
 /*fn load_css() {
     let provider = CssProvider::new();
@@ -22,7 +32,7 @@ const APP_ID: &str = "nerd.ide.gtk4rs";
         STYLE_PROVIDER_PRIORITY_APPLICATION,
     );
 } */
-use sourceview5::Buffer;
+use sourceview5::{Buffer, View};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
@@ -145,6 +155,65 @@ fn main() -> glib::ExitCode {
     app.run()
 }
 
+fn language_formatting(lang: &str, view: &sv::View, buffer: &sv::Buffer) {
+    let key = gtk::EventControllerKey::new();
+    key.set_propagation_phase(gtk::PropagationPhase::Capture);
+
+    let buffer = buffer.clone();
+
+    key.connect_key_pressed(move |_, key, _keycode, state| {
+        if state.contains(gdk::ModifierType::CONTROL_MASK)
+            || state.contains(gdk::ModifierType::ALT_MASK)
+        {
+            return glib::Propagation::Proceed;
+        }
+
+        if key != gdk::Key::Return {
+            return glib::Propagation::Proceed;
+        }
+
+        let insert = buffer.get_insert();
+        let mut cursor = buffer.iter_at_mark(&insert);
+
+        let line = cursor.line();
+        let line_start = buffer.iter_at_line(line).unwrap_or_else(|| buffer.start_iter());
+        let line_text = buffer.text(&line_start, &cursor, false).to_string();
+
+        let base_indent: String = line_text
+            .chars()
+            .take_while(|c| *c == ' ' || *c == '\t')
+            .collect();
+
+        let trimmed = line_text.trim_end();
+
+        let unit = "    "; // 4 spaces
+        let mut new_indent = base_indent.clone();
+
+        if trimmed.ends_with('{') {
+            new_indent.push_str(unit);
+
+            buffer.begin_user_action();
+            buffer.insert(&mut cursor, "\n");
+            buffer.insert(&mut cursor, "\n");
+            println!("{}", cursor.char());
+            let mut cursor2 = cursor.clone();
+            cursor2.backward_char();
+            buffer.insert(&mut cursor, &base_indent);
+            cursor.backward_line();
+            buffer.insert(&mut cursor, &new_indent);
+            buffer.place_cursor(&cursor);
+            // cursor.forward_char();
+            buffer.end_user_action();
+        }
+        else {
+            buffer.insert(&mut cursor, "\n");
+            buffer.insert(&mut cursor, &base_indent);
+        }
+        glib::Propagation::Stop
+    });
+
+    view.add_controller(key);
+}
 fn build_ui(app: &Application, build_footer: bool) {
     let window = ApplicationWindow::builder()
         .application(app)
@@ -153,7 +222,7 @@ fn build_ui(app: &Application, build_footer: bool) {
         .default_height(400)
         .build();
     let window_clone = window.clone();
-    build_body(&window_clone, false, "/Users/natano/main.py");
+    build_body(&window_clone, false, "/Users/natano/CLionProjects/prog/main.cpp");
     window.present();
 }
 
@@ -300,11 +369,15 @@ fn build_body(window: &ApplicationWindow, file_tree: bool, file_path: &str) {
     view.set_show_line_numbers(true);
     view.set_highlight_current_line(true);
     view.set_auto_indent(true);
-    view.set_insert_spaces_instead_of_tabs(false);
+    view.set_indent_width(4);
     view.set_tab_width(4);
+    view.set_insert_spaces_instead_of_tabs(true);
+    view.set_indent_on_tab(true);
+    view.set_smart_backspace(true);
     view.set_monospace(true);
-    view.set_enable_snippets(true);
-
+    if let Some(lang) = lm.guess_language(Some(file_path), None) {
+        language_formatting(lang.to_string().as_str(), &view, &buffer);
+    }
     install_br(&view, &buffer);
 
     let view_for_focus = view.clone();
