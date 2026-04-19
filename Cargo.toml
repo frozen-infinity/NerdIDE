@@ -7,4 +7,4 @@ edition = "2024"
 gtk = { version = "0.11.2", package = "gtk4", features = ["v4_22"] }
 sourceview5 = "0.11.0"
 glib = "0.22.5"
-gdk = "0.18.2"
+vte4 = "0.10.0"
