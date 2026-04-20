@@ -1,0 +1,27 @@
+@import "vars.css";
+
+.window {
+    background-color: var(--bg);
+}
+.view {
+    margin: 5px;
+    border-radius: 10px;
+    font-size: 13px;
+}
+
+.file, .view-btn, .run, .theme {
+    all: unset;
+    margin-top: 7px;
+    background-color:  var(--bg);
+    color: var(--text);
+    border-radius: 12px;
+    margin-bottom: 0px;
+}
+.run, .theme {
+    padding: 5px;
+}
+
+textview text selection {
+    background-color: rgba(137, 180, 250, 0.35);
+    border-radius: 6px;
+}

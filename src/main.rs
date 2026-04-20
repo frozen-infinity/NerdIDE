@@ -13,25 +13,69 @@ use vte4 as vte;
 use vte::prelude::*;
 use std::process::Command;
 use std::sync::{LazyLock, Mutex};
+use gtk::{Settings};
+
+fn set_caret_style() {
+    let display = gdk::Display::default().expect("No display");
+    let settings = Settings::for_display(&display);
+
+    // Make the caret thicker than the default 0.04
+    settings.set_gtk_cursor_aspect_ratio(0.10);
+
+    // Optional blink tuning
+    settings.set_gtk_cursor_blink(true);
+    settings.set_gtk_cursor_blink_time(800);
+    // settings.set_gtk_cursor_blink_timeout(0);
+}
 static tab_width: &str = "    ";
 const APP_ID: &str = "nerd.ide.gtk4rs";
-/*fn load_css() {
-    let provider = CssProvider::new();
-    provider.load_from_path("src/style.css");
 
-    let display = gdk::Display::default().expect("Could not connect to a display");
-    gtk::style_context_add_provider_for_display(
-        &display,
-        &provider,
-        STYLE_PROVIDER_PRIORITY_APPLICATION,
-    );
-} */
 use sourceview5::{Buffer, View};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 use gtk::ffi::GtkButton;
+use gtk::prelude::*;
 
+thread_local! {
+    static VARS_PROVIDER: RefCell<Option<CssProvider>> = const { RefCell::new(None) };
+}
+
+fn load_css() {
+    let static_provider = CssProvider::new();
+    static_provider.load_from_path("src/style.css");
+
+    let vars_provider = CssProvider::new();
+    vars_provider.load_from_string(":root { --bg: #1e1e2e; }");
+
+    let display = gdk::Display::default().expect("Could not connect to a display");
+
+    gtk::style_context_add_provider_for_display(
+        &display,
+        &static_provider,
+        STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
+
+    gtk::style_context_add_provider_for_display(
+        &display,
+        &vars_provider,
+        STYLE_PROVIDER_PRIORITY_APPLICATION,
+    );
+
+    VARS_PROVIDER.with(|slot| {
+        *slot.borrow_mut() = Some(vars_provider);
+    });
+}
+
+fn update_css(color: &str, text: &str) {
+    let contents = format!(":root {{ --bg: {color}AA; --text: {text}; }}", color=color, text=text);
+
+    VARS_PROVIDER.with(|slot| {
+        if let Some(provider) = slot.borrow().as_ref() {
+            provider.load_from_string(&contents);
+        }
+    });
+}
 fn install_autosave(buffer: &sv::Buffer, path: String) {
     let pending_save: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
 
@@ -141,9 +185,9 @@ fn install_br(view: &sv::View, buffer: &sv::Buffer) {
 
 fn main() -> glib::ExitCode {
     let app = Application::builder().application_id(APP_ID).build();
-    /*app.connect_startup(|_| {
+    app.connect_startup(|app| {
         load_css();
-    });*/
+    });
     app.connect_activate(|app| {
         build_ui(app, false);
     });
@@ -224,9 +268,10 @@ fn build_ui(app: &Application, build_footer: bool) {
     let window_clone = window.clone();
     build_body(&window_clone, false, "/Users/natano/CLionProjects/prog/main.cpp");
     window.present();
+    set_caret_style();
 }
 
-fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &str) -> GtkBox {
+fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &str, terminal: bool) -> GtkBox {
     let header = GtkBox::new(Orientation::Horizontal, 10);
 
     let menu = gio::Menu::new();
@@ -342,6 +387,7 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
     let menu_button = MenuButton::builder()
         .label("Files")
         .menu_model(&menu)
+        .has_frame(false)
         .build();
 
     let view_menu = gio::Menu::new();
@@ -357,6 +403,7 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
     let menu_button2 = MenuButton::builder()
         .label("View")
         .menu_model(&view_menu)
+        .has_frame(false)
         .build();
 
     let run = gtk::Button::builder()
@@ -365,13 +412,17 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
     let window2 = window.clone();
     let path2 = path.to_string();
     run.connect_clicked(move |_| {
-        build_body(&window2, true, path2.as_str());
+        build_body(&window2, !terminal, path2.as_str());
     });
 
-    // Theme chooser: minimal addition
+    let manager = sv::StyleSchemeManager::default();
+    manager.append_search_path("themes");
+    manager.force_rescan();
+
     let theme_btn = sv::StyleSchemeChooserButton::new();
 
-    if let Some(scheme) = buffer.style_scheme() {
+    if let Some(scheme) = manager.scheme("catppuccin-mocha") {
+        buffer.set_style_scheme(Some(&scheme));
         theme_btn.set_style_scheme(&scheme);
     }
 
@@ -379,13 +430,22 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
     theme_btn.connect_style_scheme_notify(move |btn| {
         let scheme = btn.style_scheme();
         buffer_for_theme.set_style_scheme(Some(&scheme));
-    });
-
+        if let Some(style) = scheme.style("text") {
+            if let Some(bg) = style.background() {
+                if let Some(color) = style.foreground() {
+                    update_css(bg.as_str(), color.as_str());
+                }
+            }
+        }    });
+    menu_button.add_css_class("file");
+    menu_button2.add_css_class("view-btn");
+    theme_btn.add_css_class("theme");
+    run.add_css_class("run");
     header.append(&menu_button);
     header.append(&menu_button2);
     header.append(&theme_btn);
     header.append(&run);
-
+    header.add_css_class("header");
     header
 }
 
@@ -439,7 +499,7 @@ fn build_body(window: &ApplicationWindow, terminal: bool, file_path: &str) {
     body.set_vexpand(true);
     body.set_hexpand(true);
     let parent = GtkBox::new(Orientation::Vertical, 6);
-    let header = build_header(&window, buffer, &view, &file_path);
+    let header = build_header(&window, buffer, &view, &file_path, terminal);
     parent.append(&header);
     parent.set_vexpand(true);
     parent.append(&body);
@@ -481,5 +541,8 @@ fn build_body(window: &ApplicationWindow, terminal: bool, file_path: &str) {
             view_for_focus.grab_focus();
         });
     }
+    parent.add_css_class("parent");
+    window.add_css_class("window");
+    view.add_css_class("view");
     window.set_child(Some(&parent));
 }
