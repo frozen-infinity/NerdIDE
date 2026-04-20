@@ -68,8 +68,8 @@ fn load_css() {
 }
 
 fn update_css(color: &str, text: &str) {
-    let contents = format!(":root {{ --bg: {color}AA; --text: {text}; }}", color=color, text=text);
-
+    let contents = format!(":root {{ --bg: {color}AA; --text: {text}; --btnbg: {color}; }}", color=color, text=text);
+    println!("{}", contents);
     VARS_PROVIDER.with(|slot| {
         if let Some(provider) = slot.borrow().as_ref() {
             provider.load_from_string(&contents);
@@ -385,7 +385,7 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
     window.add_action(&newfile);
 
     let menu_button = MenuButton::builder()
-        .label("Files")
+        .label("File")
         .menu_model(&menu)
         .has_frame(false)
         .build();
@@ -441,8 +441,11 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
     menu_button2.add_css_class("view-btn");
     theme_btn.add_css_class("theme");
     run.add_css_class("run");
+    let spacer = GtkBox::new(Orientation::Horizontal, 0);
+    spacer.set_hexpand(true);
     header.append(&menu_button);
     header.append(&menu_button2);
+    header.append(&spacer);
     header.append(&theme_btn);
     header.append(&run);
     header.add_css_class("header");

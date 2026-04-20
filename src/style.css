@@ -3,25 +3,66 @@
 .window {
     background-color: var(--bg);
 }
+.header {
+    background: var(--btnbg);
+    border-radius: 10px;
+    margin: 5px;
+    margin-bottom: 0px;
+    border:none;
+}
+
 .view {
     margin: 5px;
     border-radius: 10px;
     font-size: 13px;
 }
 
-.file, .view-btn, .run, .theme {
-    all: unset;
+/* Normal buttons */
+.run,
+.theme {
     margin-top: 7px;
-    background-color:  var(--bg);
-    color: var(--text);
-    border-radius: 12px;
     margin-bottom: 0px;
-}
-.run, .theme {
     padding: 5px;
+    background: transparent;
+    color: var(--text);
+    border: none;
+    border-radius: 12px;
+    margin-bottom: 3px;
 }
 
-textview text selection {
-    background-color: rgba(137, 180, 250, 0.35);
-    border-radius: 6px;
+/* MenuButton visible inner button */
+menubutton.file > button.toggle,
+menubutton.view-btn > button.toggle {
+    background: var(--btnbg);
+    background-image: none;
+    color: var(--text);
+    border: none;
+    box-shadow: none;
+    outline: none;
+    padding-right: -10px;
+    border-radius: 8px;
+    margin-top: 3px;
+    margin-bottom: 0px;
+}
+
+/* Hover */
+menubutton.file > button.toggle:hover,
+menubutton.view-btn > button.toggle:hover {
+    background: var(--btnbg);
+    background-image: none;
+}
+
+/* Active / open */
+menubutton.file > button.toggle:active,
+menubutton.file > button.toggle:checked,
+menubutton.view-btn > button.toggle:active,
+menubutton.view-btn > button.toggle:checked {
+    background: var(--btnbg);
+    background-image: none;
+}
+
+/* Hide arrow if wanted */
+menubutton.file > button.toggle arrow,
+menubutton.view-btn > button.toggle arrow {
+    -gtk-icon-source: none;
 }
