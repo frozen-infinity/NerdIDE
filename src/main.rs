@@ -1,18 +1,14 @@
-use gtk::Separator;
 use gtk::gio;
 use gtk::prelude::*;
 use gtk::{
-    Application, ApplicationWindow, Box as GtkBox, Button, CssProvider, FlowBox, HeaderBar,
+    Application, ApplicationWindow, Box as GtkBox, CssProvider,
     MenuButton, Orientation, STYLE_PROVIDER_PRIORITY_APPLICATION, ScrolledWindow, gdk, glib,
 };
 use sourceview5 as sv;
 use sourceview5::prelude::*;
-use sourceview5::StyleSchemeChooserButton;
 use std::fs;
 use vte4 as vte;
 use vte::prelude::*;
-use std::process::Command;
-use std::sync::{LazyLock, Mutex};
 use gtk::{Settings};
 
 fn set_caret_style() {
@@ -27,15 +23,13 @@ fn set_caret_style() {
     settings.set_gtk_cursor_blink_time(800);
     // settings.set_gtk_cursor_blink_timeout(0);
 }
-static tab_width: &str = "    ";
+static TAB_WIDTH: &str = "    ";
 const APP_ID: &str = "nerd.ide.gtk4rs";
 
 use sourceview5::{Buffer, View};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
-use gtk::ffi::GtkButton;
-use gtk::prelude::*;
 
 thread_local! {
     static VARS_PROVIDER: RefCell<Option<CssProvider>> = const { RefCell::new(None) };
@@ -46,7 +40,7 @@ fn load_css() {
     static_provider.load_from_path("src/style.css");
 
     let vars_provider = CssProvider::new();
-    vars_provider.load_from_string(":root { --bg: #1e1e2e; }");
+    vars_provider.load_from_string(":root { --bg: #1e1e2eAA; --text: #cdd6f4; --btnbg: #1e1e2e; }");
 
     let display = gdk::Display::default().expect("Could not connect to a display");
 
@@ -76,7 +70,7 @@ fn update_css(color: &str, text: &str) {
         }
     });
 }
-fn install_autosave(buffer: &sv::Buffer, path: String) {
+fn install_autosave(buffer: &Buffer, path: String) {
     let pending_save: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
 
     let path = Rc::new(path);
@@ -96,7 +90,7 @@ fn install_autosave(buffer: &sv::Buffer, path: String) {
             let (start, end) = buffer_for_save.bounds();
             let text = buffer_for_save.text(&start, &end, true);
 
-            match std::fs::write(path_for_save.as_str(), text.as_str()) {
+            match fs::write(path_for_save.as_str(), text.as_str()) {
                 Ok(()) => {
                     buffer_for_save.set_modified(false);
                     println!("autosaved");
@@ -113,7 +107,7 @@ fn install_autosave(buffer: &sv::Buffer, path: String) {
     });
 }
 
-fn install_br(view: &sv::View, buffer: &sv::Buffer) {
+fn install_br(view: &View, buffer: &Buffer) {
     let key = gtk::EventControllerKey::new();
     key.set_propagation_phase(gtk::PropagationPhase::Capture);
     let buffer = buffer.clone();
@@ -185,7 +179,7 @@ fn install_br(view: &sv::View, buffer: &sv::Buffer) {
 
 fn main() -> glib::ExitCode {
     let app = Application::builder().application_id(APP_ID).build();
-    app.connect_startup(|app| {
+    app.connect_startup(|_app| {
         load_css();
     });
     app.connect_activate(|app| {
@@ -194,13 +188,13 @@ fn main() -> glib::ExitCode {
     app.run()
 }
 
-fn language_formatting(lang: &str, view: &sv::View, buffer: &sv::Buffer) {
+fn language_formatting(lang: &str, view: &View, buffer: &Buffer) {
     let key = gtk::EventControllerKey::new();
     key.set_propagation_phase(gtk::PropagationPhase::Capture);
 
     let buffer = buffer.clone();
     println!("{}", lang);
-    let lang = lang.clone();
+    let lang = lang;
     let lang = lang.to_string();
     key.connect_key_pressed(move |_, key, _keycode, state| {
         if state.contains(gdk::ModifierType::CONTROL_MASK)
@@ -227,7 +221,7 @@ fn language_formatting(lang: &str, view: &sv::View, buffer: &sv::Buffer) {
 
         let trimmed = line_text.trim_end();
 
-        let unit = tab_width;
+        let unit = TAB_WIDTH;
         let mut new_indent = base_indent.clone();
         if trimmed.ends_with('{') {
             new_indent.push_str(unit);
@@ -258,7 +252,7 @@ fn language_formatting(lang: &str, view: &sv::View, buffer: &sv::Buffer) {
 
     view.add_controller(key);
 }
-fn build_ui(app: &Application, build_footer: bool) {
+fn build_ui(app: &Application, _build_footer: bool) {
     let window = ApplicationWindow::builder()
         .application(app)
         .title("IDE")
@@ -291,7 +285,7 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
             .accept_label("Select")
             .build();
 
-        let buffer2 = bf.clone();
+        let _buffer2 = bf.clone();
         let window2 = window_clone.clone();
 
         dialog.save(
@@ -458,9 +452,9 @@ fn build_body(window: &ApplicationWindow, terminal: bool, file_path: &str) {
     let source_file = sv::File::new();
     source_file.set_location(Some(&file));
     let lm = sv::LanguageManager::default();
-    let mut buffer = sv::Buffer::new(None);
+    let mut buffer = Buffer::new(None);
     if let Some(lang) = lm.guess_language(Some(file_path), None) {
-        buffer = sv::Buffer::with_language(&lang);
+        buffer = Buffer::with_language(&lang);
     }
     let gio_file = gio::File::for_path(file_path);
     let source_file = sv::File::new();
@@ -474,9 +468,9 @@ fn build_body(window: &ApplicationWindow, terminal: bool, file_path: &str) {
             Err(err) => eprintln!("Load failed: {err}"),
         },
     );
-    let spaces = tab_width.chars().filter(|&c| c == ' ').count() as u32;
+    let spaces = TAB_WIDTH.chars().filter(|&c| c == ' ').count() as u32;
     let indent_width = spaces as i32;
-    let view = sv::View::with_buffer(&buffer);
+    let view = View::with_buffer(&buffer);
     view.set_show_line_numbers(true);
     view.set_highlight_current_line(true);
     view.set_auto_indent(true);
