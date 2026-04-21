@@ -1,7 +1,7 @@
 use gtk::gio;
 use gtk::prelude::*;
 use gtk::{
-    Application, ApplicationWindow, Box as GtkBox, CssProvider,
+    Application, ApplicationWindow, Box as GtkBox, CssProvider, Paned,
     MenuButton, Orientation, STYLE_PROVIDER_PRIORITY_APPLICATION, ScrolledWindow, gdk, glib,
 };
 use sourceview5 as sv;
@@ -30,6 +30,7 @@ use sourceview5::{Buffer, View};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
+use gtk::ffi::gtk_header_bar_remove;
 
 thread_local! {
     static VARS_PROVIDER: RefCell<Option<CssProvider>> = const { RefCell::new(None) };
@@ -126,7 +127,8 @@ fn install_br(view: &View, buffer: &Buffer) {
             gdk::Key::braceright => "}",
             gdk::Key::quotedbl => "\"",
             gdk::Key::apostrophe => "'",
-            _ => return glib::Propagation::Proceed,
+            gdk::Key::BackSpace => "-",
+            _ => return glib::Propagation::Proceed
         };
         let closing = match ch {
             "(" => Some(")"),
@@ -136,7 +138,7 @@ fn install_br(view: &View, buffer: &Buffer) {
             "'" => Some("'"),
             _ => None,
         };
-        if ch != ")" && ch != "]" && ch != "}" {
+        if ch != ")" && ch != "]" && ch != "}" && ch != "-" {
             if let Some(close) = closing {
                 if let Some(mark) = buffer.mark("insert") {
                     let mut iter = buffer.iter_at_mark(&mark);
@@ -155,11 +157,7 @@ fn install_br(view: &View, buffer: &Buffer) {
         let start = buffer.iter_at_mark(&insert_mark);
         let mut end = start;
         end.forward_char();
-        //if !end.forward_char() {
-          //  return glib::Propagation::Proceed;
-        //}
         let next = buffer.text(&start, &end, false);
-        println!("next {}", next);
         if next.as_str() == ch {
             if let Some(mark) = buffer.mark("insert") {
                 let mut iter = buffer.iter_at_mark(&mark);
@@ -169,6 +167,22 @@ fn install_br(view: &View, buffer: &Buffer) {
                 buffer.place_cursor(&iter);
                 buffer.end_user_action();
                 return glib::Propagation::Stop;
+            }
+        }
+        if ch == "-" {
+            if let Some(mark) = buffer.mark("insert") {
+                let mut before = buffer.iter_at_mark(&mark);
+                buffer.begin_user_action();
+                let mut after = before.clone();
+                before.backward_char();
+                let bch = before.char();
+                let ach = after.char();
+                if (bch == '(' && ach == ')') || (bch == '{' && ach == '}') || (bch == '{' && ach == '}') {
+                    before.forward_char();
+                    after.forward_char();
+                    buffer.delete(&mut before, &mut after);
+                }
+                buffer.end_user_action();
             }
         }
         glib::Propagation::Proceed
@@ -260,7 +274,7 @@ fn build_ui(app: &Application, _build_footer: bool) {
         .default_height(400)
         .build();
     let window_clone = window.clone();
-    build_body(&window_clone, false, "/Users/natano/CLionProjects/prog/main.cpp");
+    build_body(&window_clone, false, "/Users/natano/CLionProjects/prog/main.cpp", "");
     window.present();
     set_caret_style();
 }
@@ -297,7 +311,7 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
                     Ok(file) => {
                         if let Some(path) = file.path() {
                             let _ = fs::File::create(&path);
-                            build_body(&window3, true, path.to_str().unwrap());
+                            build_body(&window3, terminal, path.to_str().unwrap(), "");
                         }
                     }
                     Err(err) => {
@@ -361,7 +375,7 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
                 Ok(file) => {
                     if let Some(path) = file.path() {
                         let path_string = path.to_string_lossy().to_string();
-                        build_body(&window_for_dialog, false, &path_string);
+                        build_body(&window_for_dialog, false, &path_string, "");
                     } else {
                         println!("Chosen file has no local path");
                         println!("URI: {}", file.uri());
@@ -388,9 +402,9 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
     view_menu.append(Some("Toggle line numbers"), Some("win.linenumbers"));
 
     let ln = gio::SimpleAction::new("linenumbers", None);
-    let view = view.clone();
+    let view1 = view.clone();
     ln.connect_activate(move |_, _| {
-        view.set_show_line_numbers(!view.shows_line_numbers());
+        view1.set_show_line_numbers(!view1.shows_line_numbers());
     });
     window.add_action(&ln);
 
@@ -400,15 +414,36 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
         .has_frame(false)
         .build();
 
-    let run = gtk::Button::builder()
+    let term = gtk::Button::builder()
         .label("Term")
         .build();
+    let run = gtk::Button::builder()
+        .label("Run")
+        .build();
+    run.add_css_class("run");
     let window2 = window.clone();
     let path2 = path.to_string();
-    run.connect_clicked(move |_| {
-        build_body(&window2, !terminal, path2.as_str());
+    let window3 = window.clone();
+    let path3 = path2.to_string();
+    let path4 = path.to_string();
+    let view2 = view.clone();
+    let a = terminal;
+    term.connect_clicked(move |_| {
+        build_body(&window2, !terminal, path2.as_str(), "");
     });
-
+    let lm = sv::LanguageManager::default();
+    run.connect_clicked(move |_| {
+        if let Some(lang) = lm.guess_language(Some(path4.to_string()), None) {
+            if lang.to_string() == "C++" {
+                let comm = format!("g++ -g {path3}");
+                build_body(&window3, !a, path3.as_str(), comm.as_str());
+            }
+            else if lang.to_string() == "Python" {
+                let comm = format!("python {path3}");
+                build_body(&window3, !a, path3.as_str(), comm.as_str());
+            }
+        }
+    });
     let manager = sv::StyleSchemeManager::default();
     manager.append_search_path("themes");
     manager.force_rescan();
@@ -434,6 +469,7 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
     menu_button.add_css_class("file");
     menu_button2.add_css_class("view-btn");
     theme_btn.add_css_class("theme");
+    term.add_css_class("run");
     run.add_css_class("run");
     let spacer = GtkBox::new(Orientation::Horizontal, 0);
     spacer.set_hexpand(true);
@@ -442,11 +478,12 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
     header.append(&spacer);
     header.append(&theme_btn);
     header.append(&run);
+    header.append(&term);
     header.add_css_class("header");
     header
 }
 
-fn build_body(window: &ApplicationWindow, terminal: bool, file_path: &str) {
+fn build_body(window: &ApplicationWindow, terminal: bool, file_path: &str, run_command: &str) {
     let body = GtkBox::new(Orientation::Horizontal, 6);
     let file = gio::File::for_path(file_path);
     let source_file = sv::File::new();
@@ -499,7 +536,6 @@ fn build_body(window: &ApplicationWindow, terminal: bool, file_path: &str) {
     let header = build_header(&window, buffer, &view, &file_path, terminal);
     parent.append(&header);
     parent.set_vexpand(true);
-    parent.append(&body);
     if terminal {
         let term = vte::Terminal::new();
         term.set_hexpand(true);
@@ -507,9 +543,9 @@ fn build_body(window: &ApplicationWindow, terminal: bool, file_path: &str) {
         term.set_scrollback_lines(10_000);
         term.set_scroll_on_output(true);
         term.set_input_enabled(true);
-
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
-        let argv = [shell.as_str(), "-i"];
+        let comm = format!("/bin/bash/{}", run_command);
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| comm);
+        let argv = [shell.as_str()];
 
         term.spawn_async(
             vte::PtyFlags::DEFAULT,
@@ -530,9 +566,15 @@ fn build_body(window: &ApplicationWindow, terminal: bool, file_path: &str) {
         glib::idle_add_local_once(move || {
             term_for_focus.grab_focus();
         });
-
-        parent.append(&term);
+        term.add_css_class("term");
+        let paned = Paned::new(Orientation::Vertical);
+        paned.set_start_child(Some(&body));
+        paned.set_end_child(Some(&term));
+        paned.set_hexpand(true);
+        paned.set_position(400);
+        parent.append(&paned);
     } else {
+        parent.append(&body);
         let view_for_focus = view.clone();
         glib::idle_add_local_once(move || {
             view_for_focus.grab_focus();

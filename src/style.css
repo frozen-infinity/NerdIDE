@@ -17,6 +17,11 @@
     font-size: 13px;
 }
 
+.term {
+    border-radius: 10px;
+    margin: 5px;
+}
+
 /* Normal buttons */
 .run,
 .theme {
@@ -39,7 +44,6 @@ menubutton.view-btn > button.toggle {
     border: none;
     box-shadow: none;
     outline: none;
-    padding-right: -10px;
     border-radius: 8px;
     margin-top: 3px;
     margin-bottom: 0px;
