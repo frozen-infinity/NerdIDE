@@ -2,7 +2,7 @@ use gtk::gio;
 use gtk::prelude::*;
 use gtk::{
     Application, ApplicationWindow, Box as GtkBox, CssProvider, Paned,
-    MenuButton, Orientation, STYLE_PROVIDER_PRIORITY_APPLICATION, ScrolledWindow, gdk, glib,
+    MenuButton, Orientation, STYLE_PROVIDER_PRIORITY_APPLICATION, ScrolledWindow, gdk, glib, Notebook
 };
 use sourceview5 as sv;
 use sourceview5::prelude::*;
@@ -273,15 +273,76 @@ fn build_ui(app: &Application, _build_footer: bool) {
         .default_width(500)
         .default_height(400)
         .build();
-    let window_clone = window.clone();
-    build_body(&window_clone, false, "/Users/natano/CLionProjects/prog/main.cpp", "");
+
+    let notebook = gtk::Notebook::new();
+    notebook.set_scrollable(true);
+    notebook.set_hexpand(true);
+    notebook.set_vexpand(true);
+
+    let file_path = "/Users/natano/CLionProjects/prog/main.cpp";
+
+    let lm = sv::LanguageManager::default();
+    let mut buffer = Buffer::new(None);
+    if let Some(lang) = lm.guess_language(Some(file_path), None) {
+        buffer = Buffer::with_language(&lang);
+    }
+
+    let gio_file = gio::File::for_path(file_path);
+    let source_file = sv::File::new();
+    source_file.set_location(Some(&gio_file));
+
+    let loader = sv::FileLoader::new(&buffer, &source_file);
+    loader.load_async(
+        glib::Priority::DEFAULT,
+        None::<&gio::Cancellable>,
+        move |result| match result {
+            Ok(()) => println!("Loaded"),
+            Err(err) => eprintln!("Load failed: {err}"),
+        },
+    );
+
+    let spaces = TAB_WIDTH.chars().filter(|&c| c == ' ').count() as u32;
+    let indent_width = spaces as i32;
+
+    let view = View::with_buffer(&buffer);
+    view.set_show_line_numbers(true);
+    view.set_highlight_current_line(true);
+    view.set_auto_indent(true);
+    view.set_indent_width(indent_width);
+    view.set_tab_width(spaces);
+    view.set_insert_spaces_instead_of_tabs(true);
+    view.set_indent_on_tab(true);
+    view.set_smart_backspace(true);
+    view.set_monospace(true);
+
+    if let Some(lang) = lm.guess_language(Some(file_path), None) {
+        language_formatting(lang.to_string().as_str(), &view, &buffer);
+    }
+    install_br(&view, &buffer);
+
+    let scrolled = ScrolledWindow::builder()
+        .child(&view)
+        .min_content_height(300)
+        .build();
+    scrolled.set_vexpand(true);
+    scrolled.set_hexpand(true);
+
+    install_autosave(&buffer, file_path.to_string());
+
+    let tab = gtk::Label::new(Some("main.cpp"));
+    notebook.append_page(&scrolled, Some(&tab));
+
+    build_body(&window, false, notebook);
+
     window.present();
     set_caret_style();
 }
 
-fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &str, terminal: bool) -> GtkBox {
+fn build_header(window: &ApplicationWindow, terminal: bool, notebook: Notebook) -> GtkBox {
     let header = GtkBox::new(Orientation::Horizontal, 10);
-
+    let window0 = window.clone();
+    let notebook0 = notebook.clone();
+    let notebook4 = notebook.clone();
     let menu = gio::Menu::new();
     menu.append(Some("Open"), Some("win.open"));
     menu.append(Some("Save as"), Some("win.saveas"));
@@ -291,7 +352,6 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
     let save_as = gio::SimpleAction::new("saveas", None);
     let newfile = gio::SimpleAction::new("newfile", None);
 
-    let bf = buffer.clone();
     newfile.connect_activate(move |_, _| {
         let dialog = gtk::FileDialog::builder()
             .title("New File")
@@ -299,9 +359,8 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
             .accept_label("Select")
             .build();
 
-        let _buffer2 = bf.clone();
         let window2 = window_clone.clone();
-
+        let notebook2 = notebook.clone();
         dialog.save(
             Some(&window_clone),
             None::<&gio::Cancellable>,
@@ -310,8 +369,73 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
                 match result {
                     Ok(file) => {
                         if let Some(path) = file.path() {
+                            let path2 = path.clone();
+                            let path3 = path.clone();
                             let _ = fs::File::create(&path);
-                            build_body(&window3, terminal, path.to_str().unwrap(), "");
+                            let mut filename: &str;
+                            let mut tab = gtk::Box::new(Orientation::Horizontal, 0);
+                            let source_file = sv::File::new();
+                            source_file.set_location(Some(&file));
+                            let lm = sv::LanguageManager::default();
+                            let mut buffer = Buffer::new(None);
+                            if let Some(lang) = lm.guess_language(Some(path.clone()), None) {
+                                buffer = Buffer::with_language(&lang);
+                            }
+                            let gio_file = gio::File::for_path(path);
+                            let source_file = sv::File::new();
+                            source_file.set_location(Some(&gio_file));
+                            let loader = sv::FileLoader::new(&buffer, &source_file);
+                            loader.load_async(
+                                glib::Priority::DEFAULT,
+                                None::<&gio::Cancellable>,
+                                move |result| match result {
+                                    Ok(()) => println!("Loaded"),
+                                    Err(err) => eprintln!("Load failed: {err}"),
+                                },
+                            );
+                            let spaces = TAB_WIDTH.chars().filter(|&c| c == ' ').count() as u32;
+                            let indent_width = spaces as i32;
+                            let view = View::with_buffer(&buffer);
+                            view.set_show_line_numbers(true);
+                            view.set_highlight_current_line(true);
+                            view.set_auto_indent(true);
+                            view.set_indent_width(indent_width);
+                            view.set_tab_width(spaces);
+                            view.set_insert_spaces_instead_of_tabs(true);
+                            view.set_indent_on_tab(true);
+                            view.set_smart_backspace(true);
+                            view.set_monospace(true);
+                            if let Some(lang) = lm.guess_language(Some(path2.clone()), None) {
+                                language_formatting(lang.to_string().as_str(), &view, &buffer);
+                            }
+                            install_br(&view, &buffer);
+
+                            let scrolled = ScrolledWindow::builder()
+                                .child(&view)
+                                .min_content_height(300)
+                                .build();
+                            scrolled.set_vexpand(true);
+                            scrolled.set_hexpand(true);
+                            install_autosave(&buffer, path3.to_str().unwrap().to_string());
+                            let path21 = path3.to_str().unwrap().to_string();
+                            let scrolled2 = scrolled.clone();
+                            if let Some(index) = path21.rfind('/') {
+                                filename = &path21[index + 1..];
+                                tab.append(&gtk::Label::new(Some(filename)));
+                                let close = gtk::Button::with_label("x");
+                                let notebook_clone = notebook2.clone();
+                                close.connect_clicked(move |_| {
+                                    let page = notebook_clone.page_num(&scrolled);
+                                    if page != Some(u32::MAX) {
+                                        notebook_clone.remove_page(page);
+                                    }
+                                });
+                                tab.append(&close);
+                            }
+                            notebook2.append_page(&scrolled2, Some(&tab));
+                            notebook2.set_tab_reorderable(&scrolled2, true);
+                            notebook2.set_tab_detachable(&scrolled2, true);
+                            build_body(&window3, terminal, notebook2);
                         }
                     }
                     Err(err) => {
@@ -322,7 +446,6 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
         );
     });
 
-    let buffer1 = buffer.clone();
     let wc = window.clone();
     save_as.connect_activate(move |_, _| {
         let dialog = gtk::FileDialog::builder()
@@ -331,7 +454,6 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
             .accept_label("Save")
             .build();
 
-        let buffer2 = buffer1.clone();
         let window2 = wc.clone();
 
         dialog.save(
@@ -340,9 +462,8 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
             move |result| match result {
                 Ok(file) => {
                     if let Some(path) = file.path() {
-                        let start = buffer2.start_iter();
-                        let end = buffer2.end_iter();
-                        let text = buffer2.text(&start, &end, false);
+                        let path2 = path.clone();
+                        let text = fs::read_to_string(path2).unwrap();
                         if let Err(err) = fs::write(&path, text.as_str()) {
                             eprintln!("Failed to save: {err}");
                         }
@@ -358,31 +479,93 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
         );
     });
 
-    let window_clone2 = window.clone();
     let open_action = gio::SimpleAction::new("open", None);
+
     open_action.connect_activate(move |_, _| {
         let dialog = gtk::FileDialog::builder()
             .title("Choose a file")
             .modal(true)
             .build();
-
-        let window_for_dialog = window_clone2.clone();
-
+        let nt = notebook0.clone();
+        let window_for_dialog = window0.clone();
         dialog.open(
-            Some(&window_clone2),
+            Some(&window0),
             None::<&gio::Cancellable>,
-            move |result| match result {
-                Ok(file) => {
-                    if let Some(path) = file.path() {
-                        let path_string = path.to_string_lossy().to_string();
-                        build_body(&window_for_dialog, false, &path_string, "");
-                    } else {
-                        println!("Chosen file has no local path");
-                        println!("URI: {}", file.uri());
+            move |result| {
+                match result {
+                    Ok(file) => {
+                        if let Some(path) = file.path() {
+                            let path2 = path.clone();
+                            let path3 = path.clone();
+                            let mut filename: &str;
+                            let mut tab = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+                            let source_file = sv::File::new();
+                            source_file.set_location(Some(&file));
+                            let lm = sv::LanguageManager::default();
+                            let mut buffer = Buffer::new(None);
+                            if let Some(lang) = lm.guess_language(Some(path.clone()), None) {
+                                buffer = Buffer::with_language(&lang);
+                            }
+                            let gio_file = gio::File::for_path(path);
+                            let source_file = sv::File::new();
+                            source_file.set_location(Some(&gio_file));
+                            let loader = sv::FileLoader::new(&buffer, &source_file);
+                            loader.load_async(
+                                glib::Priority::DEFAULT,
+                                None::<&gio::Cancellable>,
+                                move |result| match result {
+                                    Ok(()) => println!("Loaded"),
+                                    Err(err) => eprintln!("Load failed: {err}"),
+                                },
+                            );
+                            let spaces = TAB_WIDTH.chars().filter(|&c| c == ' ').count() as u32;
+                            let indent_width = spaces as i32;
+                            let view = View::with_buffer(&buffer);
+                            view.set_show_line_numbers(true);
+                            view.set_highlight_current_line(true);
+                            view.set_auto_indent(true);
+                            view.set_indent_width(indent_width);
+                            view.set_tab_width(spaces);
+                            view.set_insert_spaces_instead_of_tabs(true);
+                            view.set_indent_on_tab(true);
+                            view.set_smart_backspace(true);
+                            view.set_monospace(true);
+                            if let Some(lang) = lm.guess_language(Some(path2.clone()), None) {
+                                language_formatting(lang.to_string().as_str(), &view, &buffer);
+                            }
+                            install_br(&view, &buffer);
+
+                            let scrolled = ScrolledWindow::builder()
+                                .child(&view)
+                                .min_content_height(300)
+                                .build();
+                            scrolled.set_vexpand(true);
+                            scrolled.set_hexpand(true);
+                            let path21 = path3.to_str().unwrap().to_string();
+                            let scrolled2 = scrolled.clone();
+                            if let Some(index) = path21.rfind('/') {
+                                filename = &path21[index + 1..];
+                                tab.append(&gtk::Label::new(Some(filename)));
+                                let close = gtk::Button::with_label("x");
+                                let notebook_clone = nt.clone();
+                                close.connect_clicked(move |_| {
+                                    let page = notebook_clone.page_num(&scrolled);
+                                    if page != Some(u32::MAX) {
+                                        notebook_clone.remove_page(page);
+                                    }
+                                });
+                                tab.append(&close);
+                            }
+                            install_autosave(&buffer, path3.to_str().unwrap().to_string());
+                            nt.append_page(&scrolled2, Some(&tab));
+                            nt.set_tab_reorderable(&scrolled2, true);
+                            nt.set_tab_detachable(&scrolled2, true);
+                            build_body(&window_for_dialog, terminal, nt);
+                        }
                     }
-                }
-                Err(err) => {
-                    eprintln!("File dialog canceled or failed: {err}");
+                    Err(err) => {
+                        eprintln!("Save dialog canceled or failed: {err}");
+                    }
                 }
             },
         );
@@ -397,8 +580,9 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
         .menu_model(&menu)
         .has_frame(false)
         .build();
-
+/*
     let view_menu = gio::Menu::new();
+    view_menu.append(Some("Reformat Code"), Some("win.format"));
     view_menu.append(Some("Toggle line numbers"), Some("win.linenumbers"));
 
     let ln = gio::SimpleAction::new("linenumbers", None);
@@ -407,13 +591,12 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
         view1.set_show_line_numbers(!view1.shows_line_numbers());
     });
     window.add_action(&ln);
-
     let menu_button2 = MenuButton::builder()
         .label("View")
         .menu_model(&view_menu)
         .has_frame(false)
         .build();
-
+*/
     let term = gtk::Button::builder()
         .label("Term")
         .build();
@@ -422,27 +605,14 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
         .build();
     run.add_css_class("run");
     let window2 = window.clone();
-    let path2 = path.to_string();
+    // let path2 = path.to_string();
     let window3 = window.clone();
-    let path3 = path2.to_string();
-    let path4 = path.to_string();
-    let view2 = view.clone();
+    // let path3 = path2.to_string();
+    // let path4 = path.to_string();
+    //let view2 = view.clone();
     let a = terminal;
     term.connect_clicked(move |_| {
-        build_body(&window2, !terminal, path2.as_str(), "");
-    });
-    let lm = sv::LanguageManager::default();
-    run.connect_clicked(move |_| {
-        if let Some(lang) = lm.guess_language(Some(path4.to_string()), None) {
-            if lang.to_string() == "C++" {
-                let comm = format!("g++ -g {path3}");
-                build_body(&window3, !a, path3.as_str(), comm.as_str());
-            }
-            else if lang.to_string() == "Python" {
-                let comm = format!("python {path3}");
-                build_body(&window3, !a, path3.as_str(), comm.as_str());
-            }
-        }
+        build_body(&window2, !terminal, notebook4.clone());
     });
     let manager = sv::StyleSchemeManager::default();
     manager.append_search_path("themes");
@@ -450,7 +620,7 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
 
     let theme_btn = sv::StyleSchemeChooserButton::new();
 
-    if let Some(scheme) = manager.scheme("catppuccin-mocha") {
+    /*if let Some(scheme) = manager.scheme("catppuccin-mocha") {
         buffer.set_style_scheme(Some(&scheme));
         theme_btn.set_style_scheme(&scheme);
     }
@@ -465,16 +635,18 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
                     update_css(bg.as_str(), color.as_str());
                 }
             }
-        }    });
+        }
+    });
+    */
     menu_button.add_css_class("file");
-    menu_button2.add_css_class("view-btn");
+    // menu_button2.add_css_class("view-btn");
     theme_btn.add_css_class("theme");
     term.add_css_class("run");
     run.add_css_class("run");
     let spacer = GtkBox::new(Orientation::Horizontal, 0);
     spacer.set_hexpand(true);
     header.append(&menu_button);
-    header.append(&menu_button2);
+    // header.append(&menu_button2);
     header.append(&spacer);
     header.append(&theme_btn);
     header.append(&run);
@@ -483,59 +655,14 @@ fn build_header(window: &ApplicationWindow, buffer: Buffer, view: &View, path: &
     header
 }
 
-fn build_body(window: &ApplicationWindow, terminal: bool, file_path: &str, run_command: &str) {
-    let body = GtkBox::new(Orientation::Horizontal, 6);
-    let file = gio::File::for_path(file_path);
-    let source_file = sv::File::new();
-    source_file.set_location(Some(&file));
-    let lm = sv::LanguageManager::default();
-    let mut buffer = Buffer::new(None);
-    if let Some(lang) = lm.guess_language(Some(file_path), None) {
-        buffer = Buffer::with_language(&lang);
-    }
-    let gio_file = gio::File::for_path(file_path);
-    let source_file = sv::File::new();
-    source_file.set_location(Some(&gio_file));
-    let loader = sv::FileLoader::new(&buffer, &source_file);
-    loader.load_async(
-        glib::Priority::DEFAULT,
-        None::<&gio::Cancellable>,
-        move |result| match result {
-            Ok(()) => println!("Loaded"),
-            Err(err) => eprintln!("Load failed: {err}"),
-        },
-    );
-    let spaces = TAB_WIDTH.chars().filter(|&c| c == ' ').count() as u32;
-    let indent_width = spaces as i32;
-    let view = View::with_buffer(&buffer);
-    view.set_show_line_numbers(true);
-    view.set_highlight_current_line(true);
-    view.set_auto_indent(true);
-    view.set_indent_width(indent_width);
-    view.set_tab_width(spaces);
-    view.set_insert_spaces_instead_of_tabs(true);
-    view.set_indent_on_tab(true);
-    view.set_smart_backspace(true);
-    view.set_monospace(true);
-    if let Some(lang) = lm.guess_language(Some(file_path), None) {
-        language_formatting(lang.to_string().as_str(), &view, &buffer);
-    }
-    install_br(&view, &buffer);
-
-    let scrolled = ScrolledWindow::builder()
-        .child(&view)
-        .min_content_height(300)
-        .build();
-    scrolled.set_vexpand(true);
-    scrolled.set_hexpand(true);
-    install_autosave(&buffer, file_path.to_string());
-    body.append(&scrolled);
-    body.set_vexpand(true);
-    body.set_hexpand(true);
+fn build_body(window: &ApplicationWindow, terminal: bool, notebook: Notebook) {
+    let world = GtkBox::new(Orientation::Horizontal, 6);
     let parent = GtkBox::new(Orientation::Vertical, 6);
-    let header = build_header(&window, buffer, &view, &file_path, terminal);
+    let body = GtkBox::new(Orientation::Horizontal, 6);
+    let notebook2 = notebook.clone();
+    let header = build_header(&window, terminal, notebook2);
     parent.append(&header);
-    parent.set_vexpand(true);
+    body.append(&notebook);
     if terminal {
         let term = vte::Terminal::new();
         term.set_hexpand(true);
@@ -543,8 +670,7 @@ fn build_body(window: &ApplicationWindow, terminal: bool, file_path: &str, run_c
         term.set_scrollback_lines(10_000);
         term.set_scroll_on_output(true);
         term.set_input_enabled(true);
-        let comm = format!("/bin/bash/{}", run_command);
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| comm);
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
         let argv = [shell.as_str()];
 
         term.spawn_async(
@@ -575,13 +701,11 @@ fn build_body(window: &ApplicationWindow, terminal: bool, file_path: &str, run_c
         parent.append(&paned);
     } else {
         parent.append(&body);
-        let view_for_focus = view.clone();
-        glib::idle_add_local_once(move || {
-            view_for_focus.grab_focus();
-        });
     }
     parent.add_css_class("parent");
     window.add_css_class("window");
-    view.add_css_class("view");
-    window.set_child(Some(&parent));
+    // view.add_css_class("view");
+    // world.append(&sidebar);
+    world.append(&parent);
+    window.set_child(Some(&world));
 }
