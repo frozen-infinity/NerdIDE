@@ -10,7 +10,7 @@ use std::fs;
 use vte4 as vte;
 use vte::prelude::*;
 use gtk::{Settings};
-
+use std::sync::{LazyLock, Mutex};
 fn set_caret_style() {
     let display = gdk::Display::default().expect("No display");
     let settings = Settings::for_display(&display);
@@ -30,12 +30,16 @@ use sourceview5::{Buffer, View};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
-use gtk::ffi::gtk_header_bar_remove;
 
 thread_local! {
     static VARS_PROVIDER: RefCell<Option<CssProvider>> = const { RefCell::new(None) };
 }
+use std::cell::{Cell};
 
+thread_local! {
+    static TERMINAL: Cell<bool> = const { Cell::new(false) };
+    static BUFFERS: RefCell<Vec<Buffer>> = const { RefCell::new(Vec::new()) };
+}
 fn load_css() {
     let static_provider = CssProvider::new();
     static_provider.load_from_path("src/style.css");
@@ -279,7 +283,7 @@ fn build_ui(app: &Application, _build_footer: bool) {
     notebook.set_hexpand(true);
     notebook.set_vexpand(true);
 
-    let file_path = "/Users/natano/CLionProjects/prog/main.cpp";
+    let file_path = "untitled";
 
     let lm = sv::LanguageManager::default();
     let mut buffer = Buffer::new(None);
@@ -300,10 +304,8 @@ fn build_ui(app: &Application, _build_footer: bool) {
             Err(err) => eprintln!("Load failed: {err}"),
         },
     );
-
     let spaces = TAB_WIDTH.chars().filter(|&c| c == ' ').count() as u32;
     let indent_width = spaces as i32;
-
     let view = View::with_buffer(&buffer);
     view.set_show_line_numbers(true);
     view.set_highlight_current_line(true);
@@ -322,7 +324,7 @@ fn build_ui(app: &Application, _build_footer: bool) {
 
     let scrolled = ScrolledWindow::builder()
         .child(&view)
-        .min_content_height(300)
+        // .min_content_height(300)
         .build();
     scrolled.set_vexpand(true);
     scrolled.set_hexpand(true);
@@ -332,17 +334,62 @@ fn build_ui(app: &Application, _build_footer: bool) {
     let tab = gtk::Label::new(Some("main.cpp"));
     notebook.append_page(&scrolled, Some(&tab));
 
-    build_body(&window, false, notebook);
+    build_body(&window, notebook);
 
     window.present();
     set_caret_style();
 }
 
-fn build_header(window: &ApplicationWindow, terminal: bool, notebook: Notebook) -> GtkBox {
+fn toggle_term(paned: Paned, notebook: Notebook, parent: GtkBox) -> () {
+    if (TERMINAL.with(|v| v.get())) {
+        let term = vte::Terminal::new();
+        term.set_hexpand(true);
+        term.set_vexpand(true);
+        term.set_scrollback_lines(10_000);
+        term.set_scroll_on_output(true);
+        term.set_input_enabled(true);
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+        let argv = [shell.as_str()];
+
+        term.spawn_async(
+            vte::PtyFlags::DEFAULT,
+            None,
+            &argv,
+            &[],
+            glib::SpawnFlags::DEFAULT,
+            || {},
+            -1,
+            None::<&gio::Cancellable>,
+            |result| match result {
+                Ok(_) => println!("Shell started"),
+                Err(err) => eprintln!("Failed to start shell: {err}"),
+            },
+        );
+
+        let term_for_focus = term.clone();
+        glib::idle_add_local_once(move || {
+            term_for_focus.grab_focus();
+        });
+        term.add_css_class("term");
+        println!("Added notebook");
+        paned.set_end_child(Some(&term));
+    }
+    else {
+        paned.set_end_child(None::<&gtk::Widget>);
+    }
+}
+
+fn build_header(window: &ApplicationWindow, notebook: Notebook) {
     let header = GtkBox::new(Orientation::Vertical, 10);
+    let world = GtkBox::new(Orientation::Horizontal, 6);
+
+    let parent = GtkBox::new(Orientation::Vertical, 8);
     let window0 = window.clone();
     let notebook0 = notebook.clone();
     let notebook4 = notebook.clone();
+    world.set_hexpand(true);
+    world.set_vexpand(true);
+    parent.set_vexpand(true);
     let menu = gio::Menu::new();
     menu.append(Some("Open"), Some("win.open"));
     menu.append(Some("Save as"), Some("win.saveas"));
@@ -412,7 +459,7 @@ fn build_header(window: &ApplicationWindow, terminal: bool, notebook: Notebook) 
 
                             let scrolled = ScrolledWindow::builder()
                                 .child(&view)
-                                .min_content_height(300)
+                                // .min_content_height(300)
                                 .build();
                             scrolled.set_vexpand(true);
                             scrolled.set_hexpand(true);
@@ -435,7 +482,7 @@ fn build_header(window: &ApplicationWindow, terminal: bool, notebook: Notebook) 
                             notebook2.append_page(&scrolled2, Some(&tab));
                             notebook2.set_tab_reorderable(&scrolled2, true);
                             notebook2.set_tab_detachable(&scrolled2, true);
-                            build_body(&window3, terminal, notebook2);
+                            // build_body(&window3, terminal, notebook2);
                         }
                     }
                     Err(err) => {
@@ -537,7 +584,7 @@ fn build_header(window: &ApplicationWindow, terminal: bool, notebook: Notebook) 
 
                             let scrolled = ScrolledWindow::builder()
                                 .child(&view)
-                                .min_content_height(300)
+                                // .min_content_height(300)
                                 .build();
                             scrolled.set_vexpand(true);
                             scrolled.set_hexpand(true);
@@ -560,7 +607,7 @@ fn build_header(window: &ApplicationWindow, terminal: bool, notebook: Notebook) 
                             nt.append_page(&scrolled2, Some(&tab));
                             nt.set_tab_reorderable(&scrolled2, true);
                             nt.set_tab_detachable(&scrolled2, true);
-                            build_body(&window_for_dialog, terminal, nt);
+                            // build_body(&window_for_dialog, terminal, nt);
                         }
                     }
                     Err(err) => {
@@ -580,23 +627,23 @@ fn build_header(window: &ApplicationWindow, terminal: bool, notebook: Notebook) 
         .menu_model(&menu)
         .has_frame(false)
         .build();
-/*
-    let view_menu = gio::Menu::new();
-    view_menu.append(Some("Reformat Code"), Some("win.format"));
-    view_menu.append(Some("Toggle line numbers"), Some("win.linenumbers"));
+    /*
+        let view_menu = gio::Menu::new();
+        view_menu.append(Some("Reformat Code"), Some("win.format"));
+        view_menu.append(Some("Toggle line numbers"), Some("win.linenumbers"));
 
-    let ln = gio::SimpleAction::new("linenumbers", None);
-    let view1 = view.clone();
-    ln.connect_activate(move |_, _| {
-        view1.set_show_line_numbers(!view1.shows_line_numbers());
-    });
-    window.add_action(&ln);
-    let menu_button2 = MenuButton::builder()
-        .label("View")
-        .menu_model(&view_menu)
-        .has_frame(false)
-        .build();
-*/
+        let ln = gio::SimpleAction::new("linenumbers", None);
+        let view1 = view.clone();
+        ln.connect_activate(move |_, _| {
+            view1.set_show_line_numbers(!view1.shows_line_numbers());
+        });
+        window.add_action(&ln);
+        let menu_button2 = MenuButton::builder()
+            .label("View")
+            .menu_model(&view_menu)
+            .has_frame(false)
+            .build();
+    */
     let term = gtk::Button::builder()
         .label("Term")
         .build();
@@ -605,14 +652,26 @@ fn build_header(window: &ApplicationWindow, terminal: bool, notebook: Notebook) 
         .build();
     run.add_css_class("run");
     let window2 = window.clone();
-    // let path2 = path.to_string();
     let window3 = window.clone();
-    // let path3 = path2.to_string();
-    // let path4 = path.to_string();
-    //let view2 = view.clone();
-    let a = terminal;
+    let notebook5 = notebook4.clone();
+    let paned = Paned::new(Orientation::Vertical);
+    paned.set_hexpand(true);
+    paned.set_vexpand(true);
+    paned.set_resize_start_child(true);
+    paned.set_resize_end_child(true);
+    paned.set_shrink_start_child(true);
+    paned.set_shrink_end_child(true);
+    let parent2 = parent.clone();
+    world.set_hexpand(true);
+    world.set_vexpand(true);
+    parent.set_hexpand(true);
+    parent.set_vexpand(true);
+    toggle_term(paned.clone(), notebook5.clone(), parent2.clone());
+    paned.set_start_child(Some(&notebook5));
+    parent.append(&paned);
     term.connect_clicked(move |_| {
-        build_body(&window2, !terminal, notebook4.clone());
+        TERMINAL.with(|v| v.set(!v.get()));
+        toggle_term(paned.clone(), notebook5.clone(), parent2.clone());
     });
     let manager = sv::StyleSchemeManager::default();
     manager.append_search_path("themes");
@@ -653,60 +712,14 @@ fn build_header(window: &ApplicationWindow, terminal: bool, notebook: Notebook) 
     header.append(&term);
     header.add_css_class("header");
     header.set_hexpand(false);
-    header
-}
-
-fn build_body(window: &ApplicationWindow, terminal: bool, notebook: Notebook) {
-    let world = GtkBox::new(Orientation::Horizontal, 6);
-    let parent = GtkBox::new(Orientation::Horizontal, 6);
-    let body = GtkBox::new(Orientation::Horizontal, 6);
-    let notebook2 = notebook.clone();
-    let header = build_header(&window, terminal, notebook2);
-    parent.append(&header);
-    body.append(&notebook);
-    if terminal {
-        let term = vte::Terminal::new();
-        term.set_hexpand(true);
-        term.set_vexpand(true);
-        term.set_scrollback_lines(10_000);
-        term.set_scroll_on_output(true);
-        term.set_input_enabled(true);
-        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
-        let argv = [shell.as_str()];
-
-        term.spawn_async(
-            vte::PtyFlags::DEFAULT,
-            None,
-            &argv,
-            &[],
-            glib::SpawnFlags::DEFAULT,
-            || {},
-            -1,
-            None::<&gio::Cancellable>,
-            |result| match result {
-                Ok(_) => println!("Shell started"),
-                Err(err) => eprintln!("Failed to start shell: {err}"),
-            },
-        );
-
-        let term_for_focus = term.clone();
-        glib::idle_add_local_once(move || {
-            term_for_focus.grab_focus();
-        });
-        term.add_css_class("term");
-        let paned = Paned::new(Orientation::Vertical);
-        paned.set_start_child(Some(&body));
-        paned.set_end_child(Some(&term));
-        paned.set_hexpand(true);
-        paned.set_position(400);
-        parent.append(&paned);
-    } else {
-        parent.append(&body);
-    }
-    parent.add_css_class("parent");
-    window.add_css_class("window");
-    // view.add_css_class("view");
-    // world.append(&sidebar);
+    world.append(&header);
     world.append(&parent);
     window.set_child(Some(&world));
+}
+
+fn build_body(window: &ApplicationWindow, notebook: Notebook) {
+    let notebook2 = notebook.clone();
+    build_header(&window, notebook2);
+    // view.add_css_class("view");
+    // world.append(&sidebar);
 }
