@@ -339,7 +339,7 @@ fn build_ui(app: &Application, _build_footer: bool) {
 }
 
 fn build_header(window: &ApplicationWindow, terminal: bool, notebook: Notebook) -> GtkBox {
-    let header = GtkBox::new(Orientation::Horizontal, 10);
+    let header = GtkBox::new(Orientation::Vertical, 10);
     let window0 = window.clone();
     let notebook0 = notebook.clone();
     let notebook4 = notebook.clone();
@@ -652,12 +652,13 @@ fn build_header(window: &ApplicationWindow, terminal: bool, notebook: Notebook) 
     header.append(&run);
     header.append(&term);
     header.add_css_class("header");
+    header.set_hexpand(false);
     header
 }
 
 fn build_body(window: &ApplicationWindow, terminal: bool, notebook: Notebook) {
     let world = GtkBox::new(Orientation::Horizontal, 6);
-    let parent = GtkBox::new(Orientation::Vertical, 6);
+    let parent = GtkBox::new(Orientation::Horizontal, 6);
     let body = GtkBox::new(Orientation::Horizontal, 6);
     let notebook2 = notebook.clone();
     let header = build_header(&window, terminal, notebook2);
