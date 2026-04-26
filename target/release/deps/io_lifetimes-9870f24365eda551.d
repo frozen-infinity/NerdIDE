@@ -1,0 +1,11 @@
+/Users/natano/RustroverProjects/NerdIDE/target/release/deps/io_lifetimes-9870f24365eda551.d: /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/lib.rs /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/portability.rs /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/traits.rs /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/raw.rs /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/views.rs
+
+/Users/natano/RustroverProjects/NerdIDE/target/release/deps/libio_lifetimes-9870f24365eda551.rlib: /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/lib.rs /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/portability.rs /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/traits.rs /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/raw.rs /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/views.rs
+
+/Users/natano/RustroverProjects/NerdIDE/target/release/deps/libio_lifetimes-9870f24365eda551.rmeta: /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/lib.rs /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/portability.rs /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/traits.rs /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/raw.rs /Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/views.rs
+
+/Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/lib.rs:
+/Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/portability.rs:
+/Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/traits.rs:
+/Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/raw.rs:
+/Users/natano/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/io-lifetimes-2.0.4/src/views.rs:
