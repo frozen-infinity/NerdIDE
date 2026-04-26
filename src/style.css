@@ -134,5 +134,6 @@ menubutton.file > button.toggle arrow {
 
 textview {
     caret-color: var(--text);
+    font-family: "JetBrainsMono Nerd Font";
     caret-shape: bar;
 }
