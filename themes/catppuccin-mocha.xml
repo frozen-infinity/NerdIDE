@@ -1,49 +1,48 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<style-scheme id="catppuccin-mocha"
-              name="Catppuccin Mocha"
-              version="1.0">
+<style-scheme id="catppuccin-mocha" _name="Catppuccin Mocha" version="1.0">
+  <author>OpenAI</author>
+  <_description>Catppuccin Mocha for GtkSourceView</_description>
 
-  <author>Your Name</author>
-  <description>Catppuccin Mocha for GtkSourceView</description>
+  <style name="text"                foreground="#cdd6f4" background="#1e1e2e"/>
+  <style name="selection"           background="#585b70"/>
+  <style name="cursor-line"         background="#313244"/>
+  <style name="current-line"        background="#313244"/>
+  <style name="line-numbers"        foreground="#6c7086" background="#181825"/>
+  <style name="bracket-match"       foreground="#1e1e2e" background="#b4befe" bold="true"/>
+  <style name="search-match"        foreground="#1e1e2e" background="#94e2d5" bold="true"/>
 
-  <!-- Catppuccin Mocha core colors -->
-  <color name="base"      value="#1e1e2e"/>
-  <color name="mantle"    value="#181825"/>
-  <color name="rosewater" value="#f5e0dc"/>
-  <color name="surface0"  value="#313244"/>
-  <color name="surface1"  value="#45475a"/>
-  <color name="text"      value="#cdd6f4"/>
-  <color name="subtext1"  value="#bac2de"/>
-  <color name="overlay0"  value="#6c7086"/>
-  <color name="blue"      value="#89b4fa"/>
-  <color name="lavender"  value="#b4befe"/>
-  <color name="green"     value="#a6e3a1"/>
-  <color name="yellow"    value="#f9e2af"/>
-  <color name="peach"     value="#fab387"/>
-  <color name="red"       value="#f38ba8"/>
-  <color name="mauve"     value="#cba6f7"/>
-  <color name="teal"      value="#94e2d5"/>
+  <style name="comment"             foreground="#7f849c" italic="true"/>
+  <style name="def:comment"         use-style="comment"/>
 
-  <!-- General editor appearance -->
-  <style name="text"                foreground="text"      background="base"/>
-  <style name="selection"           foreground="text"      background="surface1"/>
-  <style name="selection-unfocused" foreground="text"      background="surface0"/>
-  <style name="cursor"              foreground="rosewater"/>
-  <style name="current-line"        background="mantle"/>
-  <style name="line-numbers"        foreground="overlay0"  background="mantle"/>
-  <style name="current-line-number" foreground="text"      background="mantle" bold="true"/>
-  <style name="bracket-match"       foreground="base"      background="lavender" bold="true"/>
-  <style name="bracket-mismatch"    foreground="base"      background="red" bold="true"/>
-  <style name="right-margin"        foreground="surface1"  background="surface1"/>
+  <style name="string"              foreground="#a6e3a1"/>
+  <style name="def:string"          use-style="string"/>
+  <style name="def:character"       use-style="string"/>
+  <style name="def:special-char"    foreground="#f5c2e7"/>
 
-  <!-- A few common syntax styles -->
-  <style name="def:comment"         foreground="overlay0" italic="true"/>
-  <style name="def:string"          foreground="green"/>
-  <style name="def:constant"        foreground="peach"/>
-  <style name="def:number"          foreground="peach"/>
-  <style name="def:keyword"         foreground="mauve" bold="true"/>
-  <style name="def:type"            foreground="yellow"/>
-  <style name="def:function"        foreground="blue"/>
-  <style name="def:identifier"      foreground="text"/>
-  <style name="def:preprocessor"    foreground="teal"/>
+  <style name="keyword"             foreground="#cba6f7" bold="true"/>
+  <style name="def:keyword"         use-style="keyword"/>
+  <style name="def:statement"       use-style="keyword"/>
+
+  <style name="number"              foreground="#fab387"/>
+  <style name="def:number"          use-style="number"/>
+  <style name="def:floating-point"  use-style="number"/>
+
+  <style name="function"            foreground="#89b4fa"/>
+  <style name="def:function"        use-style="function"/>
+
+  <style name="type"                foreground="#f9e2af"/>
+  <style name="def:type"            use-style="type"/>
+
+  <style name="constant"            foreground="#f5c2e7"/>
+  <style name="def:constant"        use-style="constant"/>
+  <style name="def:boolean"         use-style="constant"/>
+
+  <style name="operator"            foreground="#89dceb"/>
+  <style name="def:operator"        use-style="operator"/>
+
+  <style name="preprocessor"        foreground="#f38ba8"/>
+  <style name="def:preprocessor"    use-style="preprocessor"/>
+
+  <style name="error"               foreground="#f38ba8" underline="error"/>
+  <style name="warning"             foreground="#f9e2af" underline="single"/>
 </style-scheme>

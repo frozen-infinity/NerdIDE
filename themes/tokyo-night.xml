@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<style-scheme id="tokyo-night" _name="Tokyo Night" version="1.0">
+  <author>OpenAI</author>
+  <_description>Tokyo Night night for GtkSourceView</_description>
+
+  <style name="text"                foreground="#c0caf5" background="#1a1b26"/>
+  <style name="selection"           background="#292e42"/>
+  <style name="cursor-line"         background="#292e42"/>
+  <style name="current-line"        background="#292e42"/>
+  <style name="line-numbers"        foreground="#565f89" background="#16161e"/>
+  <style name="bracket-match"       foreground="#1a1b26" background="#7aa2f7" bold="true"/>
+  <style name="search-match"        foreground="#1a1b26" background="#7dcfff" bold="true"/>
+
+  <style name="comment"             foreground="#565f89" italic="true"/>
+  <style name="def:comment"         use-style="comment"/>
+
+  <style name="string"              foreground="#9ece6a"/>
+  <style name="def:string"          use-style="string"/>
+  <style name="def:character"       use-style="string"/>
+  <style name="def:special-char"    foreground="#bb9af7"/>
+
+  <style name="keyword"             foreground="#9d7cd8" bold="true"/>
+  <style name="def:keyword"         use-style="keyword"/>
+  <style name="def:statement"       use-style="keyword"/>
+
+  <style name="number"              foreground="#ff9e64"/>
+  <style name="def:number"          use-style="number"/>
+  <style name="def:floating-point"  use-style="number"/>
+
+  <style name="function"            foreground="#7aa2f7"/>
+  <style name="def:function"        use-style="function"/>
+
+  <style name="type"                foreground="#e0af68"/>
+  <style name="def:type"            use-style="type"/>
+
+  <style name="constant"            foreground="#bb9af7"/>
+  <style name="def:constant"        use-style="constant"/>
+  <style name="def:boolean"         use-style="constant"/>
+
+  <style name="operator"            foreground="#7dcfff"/>
+  <style name="def:operator"        use-style="operator"/>
+
+  <style name="preprocessor"        foreground="#f7768e"/>
+  <style name="def:preprocessor"    use-style="preprocessor"/>
+
+  <style name="error"               foreground="#f7768e" underline="error"/>
+  <style name="warning"             foreground="#e0af68" underline="single"/>
+</style-scheme>

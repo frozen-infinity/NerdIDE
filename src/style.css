@@ -3,6 +3,10 @@
 .window {
     background-color: var(--bg);
 }
+.world {
+    background-color: var(--fg);
+}
+
 .header {
     background: var(--btnbg);
     border-radius: 10px;
@@ -21,7 +25,66 @@
     border-radius: 10px;
     margin: 5px;
 }
+notebook,
+notebook > stack,
+scrolledwindow
+/* textview,
+textview text */ {
+    background-color: transparent;
+    background-image: none;
+    box-shadow: none;
+    border: none;
+}
+notebook > header > tabs > tab:checked {
+    transition: transform 0.3s ease-in-out, background-color 0.3s ease;
+    background-color: var(--fg);
+}
 
+.notebook {
+    all: unset;
+    /*background-color: var(--bg);*/
+    border-radius: 10px;
+    margin-bottom: 5px;
+    margin-right: 5px;
+    margin-top: 5px;
+    border: none;
+}
+
+.notebook > header {
+    background-color: var(--bg);
+    border: none;
+    border-radius: 10px;
+}
+
+.close-button {
+    all: unset;
+    font-family: "JetBrainsMono Nerd Font";
+    background-color: transparent;
+    color: var(--text);
+    border-radius: 50px;
+    margin-top: 10px;
+    margin-bottom: 10px;
+}
+
+.notebook > header > tabs > tab {
+    all: unset;
+    background-color: transparent;
+    color: var(--text);
+    border-radius: 15px;
+    padding-left: 6px;
+    padding-right: 6px;
+    margin: 5px;
+    border: 1px var(--text) solid;
+}
+
+.theme-btn {
+    font-family: "JetBrainsMono Nerd Font";
+}
+
+.close-button:hover {
+    background-color: var(--fg);
+
+}
 /* Normal buttons */
 .run,
 .theme {
@@ -31,6 +94,7 @@
     background: transparent;
     color: var(--text);
     border: none;
+    font-family: "JetBrainsMono Nerd Font";
     border-radius: 12px;
     margin-bottom: 3px;
 }

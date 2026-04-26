@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<style-scheme id="catppuccin-frappe" _name="Catppuccin Frappé" version="1.0">
+  <author>OpenAI</author>
+  <_description>Catppuccin Frappé for GtkSourceView</_description>
+
+  <style name="text"                foreground="#c6d0f5" background="#303446"/>
+  <style name="selection"           background="#626880"/>
+  <style name="cursor-line"         background="#414559"/>
+  <style name="current-line"        background="#414559"/>
+  <style name="line-numbers"        foreground="#737994" background="#292c3c"/>
+  <style name="bracket-match"       foreground="#303446" background="#babbf1" bold="true"/>
+  <style name="search-match"        foreground="#303446" background="#81c8be" bold="true"/>
+
+  <style name="comment"             foreground="#838ba7" italic="true"/>
+  <style name="def:comment"         use-style="comment"/>
+
+  <style name="string"              foreground="#a6d189"/>
+  <style name="def:string"          use-style="string"/>
+  <style name="def:character"       use-style="string"/>
+  <style name="def:special-char"    foreground="#f4b8e4"/>
+
+  <style name="keyword"             foreground="#ca9ee6" bold="true"/>
+  <style name="def:keyword"         use-style="keyword"/>
+  <style name="def:statement"       use-style="keyword"/>
+
+  <style name="number"              foreground="#ef9f76"/>
+  <style name="def:number"          use-style="number"/>
+  <style name="def:floating-point"  use-style="number"/>
+
+  <style name="function"            foreground="#8caaee"/>
+  <style name="def:function"        use-style="function"/>
+
+  <style name="type"                foreground="#e5c890"/>
+  <style name="def:type"            use-style="type"/>
+
+  <style name="constant"            foreground="#f4b8e4"/>
+  <style name="def:constant"        use-style="constant"/>
+  <style name="def:boolean"         use-style="constant"/>
+
+  <style name="operator"            foreground="#99d1db"/>
+  <style name="def:operator"        use-style="operator"/>
+
+  <style name="preprocessor"        foreground="#e78284"/>
+  <style name="def:preprocessor"    use-style="preprocessor"/>
+
+  <style name="error"               foreground="#e78284" underline="error"/>
+  <style name="warning"             foreground="#e5c890" underline="single"/>
+</style-scheme>

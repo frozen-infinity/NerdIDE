@@ -26,8 +26,9 @@ fn set_caret_style() {
 static TAB_WIDTH: &str = "    ";
 const APP_ID: &str = "nerd.ide.gtk4rs";
 
-use sourceview5::{Buffer, View};
+use sourceview5::{Buffer, StyleScheme, View};
 use std::cell::RefCell;
+use std::cell::OnceCell;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -38,6 +39,7 @@ use std::cell::{Cell};
 
 thread_local! {
     static TERMINAL: Cell<bool> = const { Cell::new(false) };
+    static SCHEME: RefCell<Option<sv::StyleScheme>> = const { RefCell::new(None) };
     static BUFFERS: RefCell<Vec<Buffer>> = const { RefCell::new(Vec::new()) };
 }
 fn load_css() {
@@ -45,7 +47,7 @@ fn load_css() {
     static_provider.load_from_path("src/style.css");
 
     let vars_provider = CssProvider::new();
-    vars_provider.load_from_string(":root { --bg: #1e1e2eAA; --text: #cdd6f4; --btnbg: #1e1e2e; }");
+    vars_provider.load_from_string(":root { --bg: #1e1e2e; --text: #cdd6f4; --btnbg: #1e1e2e; --fg: #45475a; }");
 
     let display = gdk::Display::default().expect("Could not connect to a display");
 
@@ -66,8 +68,8 @@ fn load_css() {
     });
 }
 
-fn update_css(color: &str, text: &str) {
-    let contents = format!(":root {{ --bg: {color}AA; --text: {text}; --btnbg: {color}; }}", color=color, text=text);
+fn update_css(color: &str, text: &str, fg:&str) {
+    let contents = format!(":root {{ --bg: {color}; --text: {text}; --btnbg: {color}; --fg: {fg};", color=color, text=text, fg=fg);
     println!("{}", contents);
     VARS_PROVIDER.with(|slot| {
         if let Some(provider) = slot.borrow().as_ref() {
@@ -282,7 +284,7 @@ fn build_ui(app: &Application, _build_footer: bool) {
     notebook.set_scrollable(true);
     notebook.set_hexpand(true);
     notebook.set_vexpand(true);
-
+    fs::File::create_new("untitled");
     let file_path = "untitled";
 
     let lm = sv::LanguageManager::default();
@@ -321,6 +323,18 @@ fn build_ui(app: &Application, _build_footer: bool) {
         language_formatting(lang.to_string().as_str(), &view, &buffer);
     }
     install_br(&view, &buffer);
+    let manager = sv::StyleSchemeManager::default();
+    manager.append_search_path("themes");
+    manager.force_rescan();
+    if let Some(scheme) = manager.scheme("catpuccin-mocha") {
+        buffer.set_style_scheme(Some(&scheme));
+        SCHEME.with(|cell| {
+            *cell.borrow_mut() = Some(scheme.clone());
+        });
+    }
+    BUFFERS.with(|buffers| {
+        buffers.borrow_mut().push(buffer.clone());
+    });
 
     let scrolled = ScrolledWindow::builder()
         .child(&view)
@@ -331,8 +345,8 @@ fn build_ui(app: &Application, _build_footer: bool) {
 
     install_autosave(&buffer, file_path.to_string());
 
-    let tab = gtk::Label::new(Some("main.cpp"));
-    notebook.append_page(&scrolled, Some(&tab));
+    let tab = gtk::Label::new(Some("untitled"));
+    // notebook.append_page(&scrolled, Some(&tab));
 
     build_body(&window, notebook);
 
@@ -382,8 +396,8 @@ fn toggle_term(paned: Paned, notebook: Notebook, parent: GtkBox) -> () {
 fn build_header(window: &ApplicationWindow, notebook: Notebook) {
     let header = GtkBox::new(Orientation::Vertical, 10);
     let world = GtkBox::new(Orientation::Horizontal, 6);
-
     let parent = GtkBox::new(Orientation::Vertical, 8);
+    world.add_css_class("world");
     let window0 = window.clone();
     let notebook0 = notebook.clone();
     let notebook4 = notebook.clone();
@@ -456,7 +470,14 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
                                 language_formatting(lang.to_string().as_str(), &view, &buffer);
                             }
                             install_br(&view, &buffer);
-
+                            SCHEME.with(|cell| {
+                                if let Some(scheme) = cell.borrow().as_ref() {
+                                    buffer.set_style_scheme(Some(scheme));
+                                }
+                            });
+                            BUFFERS.with(|buffers| {
+                                buffers.borrow_mut().push(buffer.clone());
+                            });
                             let scrolled = ScrolledWindow::builder()
                                 .child(&view)
                                 // .min_content_height(300)
@@ -469,7 +490,7 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
                             if let Some(index) = path21.rfind('/') {
                                 filename = &path21[index + 1..];
                                 tab.append(&gtk::Label::new(Some(filename)));
-                                let close = gtk::Button::with_label("x");
+                                let close = gtk::Button::with_label("");
                                 let notebook_clone = notebook2.clone();
                                 close.connect_clicked(move |_| {
                                     let page = notebook_clone.page_num(&scrolled);
@@ -478,6 +499,7 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
                                     }
                                 });
                                 tab.append(&close);
+                                close.add_css_class("close-button");
                             }
                             notebook2.append_page(&scrolled2, Some(&tab));
                             notebook2.set_tab_reorderable(&scrolled2, true);
@@ -581,7 +603,14 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
                                 language_formatting(lang.to_string().as_str(), &view, &buffer);
                             }
                             install_br(&view, &buffer);
-
+                            SCHEME.with(|cell| {
+                                if let Some(scheme) = cell.borrow().as_ref() {
+                                    buffer.set_style_scheme(Some(scheme));
+                                }
+                            });
+                            BUFFERS.with(|buffers| {
+                                buffers.borrow_mut().push(buffer.clone());
+                            });
                             let scrolled = ScrolledWindow::builder()
                                 .child(&view)
                                 // .min_content_height(300)
@@ -593,7 +622,7 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
                             if let Some(index) = path21.rfind('/') {
                                 filename = &path21[index + 1..];
                                 tab.append(&gtk::Label::new(Some(filename)));
-                                let close = gtk::Button::with_label("x");
+                                let close = gtk::Button::with_label("");
                                 let notebook_clone = nt.clone();
                                 close.connect_clicked(move |_| {
                                     let page = notebook_clone.page_num(&scrolled);
@@ -602,6 +631,7 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
                                     }
                                 });
                                 tab.append(&close);
+                                close.add_css_class("close-button");
                             }
                             install_autosave(&buffer, path3.to_str().unwrap().to_string());
                             nt.append_page(&scrolled2, Some(&tab));
@@ -645,12 +675,8 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
             .build();
     */
     let term = gtk::Button::builder()
-        .label("Term")
+        .label("")
         .build();
-    let run = gtk::Button::builder()
-        .label("Run")
-        .build();
-    run.add_css_class("run");
     let window2 = window.clone();
     let window3 = window.clone();
     let notebook5 = notebook4.clone();
@@ -678,39 +704,59 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
     manager.force_rescan();
 
     let theme_btn = sv::StyleSchemeChooserButton::new();
-
-    /*if let Some(scheme) = manager.scheme("catppuccin-mocha") {
-        buffer.set_style_scheme(Some(&scheme));
+    theme_btn.add_css_class("theme-btn");
+    // theme_btn.set_label("");
+    if let Some(scheme) = manager.scheme("catppuccin-mocha") {
+        BUFFERS.with(|buffers| {
+            for buffer in buffers.borrow().iter() {
+                buffer.set_style_scheme(Some(&scheme));
+            }
+        });
+        SCHEME.with(|cell| {
+            *cell.borrow_mut() = Some(scheme.clone());
+        });
+        println!("changed scheme");
         theme_btn.set_style_scheme(&scheme);
+        // theme_btn.set_label("");
     }
 
-    let buffer_for_theme = buffer.clone();
+    // let buffer_for_theme = buffer.clone();
     theme_btn.connect_style_scheme_notify(move |btn| {
         let scheme = btn.style_scheme();
-        buffer_for_theme.set_style_scheme(Some(&scheme));
+        BUFFERS.with(|buffers| {
+            for buffer in buffers.borrow().iter() {
+                buffer.set_style_scheme(Some(&scheme));
+            }
+        });
+        SCHEME.with(|cell| {
+            *cell.borrow_mut() = Some(scheme.clone());
+        });
         if let Some(style) = scheme.style("text") {
             if let Some(bg) = style.background() {
                 if let Some(color) = style.foreground() {
-                    update_css(bg.as_str(), color.as_str());
+                    if let Some(style2) = scheme.style("selection") {
+                        if let Some(fg) = style2.background() {
+                            update_css(bg.as_str(), color.as_str(), fg.as_str());
+                            println!("There should be css next");
+                        }
+                    }
                 }
             }
         }
     });
-    */
     menu_button.add_css_class("file");
     // menu_button2.add_css_class("view-btn");
     theme_btn.add_css_class("theme");
     term.add_css_class("run");
-    run.add_css_class("run");
     let spacer = GtkBox::new(Orientation::Horizontal, 0);
     spacer.set_hexpand(true);
     header.append(&menu_button);
     // header.append(&menu_button2);
     header.append(&spacer);
     header.append(&theme_btn);
-    header.append(&run);
     header.append(&term);
     header.add_css_class("header");
+    notebook4.add_css_class("notebook");
     header.set_hexpand(false);
     world.append(&header);
     world.append(&parent);
