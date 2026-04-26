@@ -10,7 +10,6 @@ use std::fs;
 use vte4 as vte;
 use vte::prelude::*;
 use gtk::{Settings};
-use std::sync::{LazyLock, Mutex};
 fn set_caret_style() {
     let display = gdk::Display::default().expect("No display");
     let settings = Settings::for_display(&display);
@@ -26,9 +25,8 @@ fn set_caret_style() {
 static TAB_WIDTH: &str = "    ";
 const APP_ID: &str = "nerd.ide.gtk4rs";
 
-use sourceview5::{Buffer, StyleScheme, View};
+use sourceview5::{Buffer, View};
 use std::cell::RefCell;
-use std::cell::OnceCell;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -275,87 +273,22 @@ fn language_formatting(lang: &str, view: &View, buffer: &Buffer) {
 fn build_ui(app: &Application, _build_footer: bool) {
     let window = ApplicationWindow::builder()
         .application(app)
-        .title("IDE")
-        .default_width(500)
-        .default_height(400)
+        .title("NerdIDE")
+        .default_width(1920)
+        .default_height(1080)
         .build();
 
-    let notebook = gtk::Notebook::new();
+    let notebook = Notebook::new();
     notebook.set_scrollable(true);
     notebook.set_hexpand(true);
     notebook.set_vexpand(true);
-    fs::File::create_new("untitled");
-    let file_path = "untitled";
-
-    let lm = sv::LanguageManager::default();
-    let mut buffer = Buffer::new(None);
-    if let Some(lang) = lm.guess_language(Some(file_path), None) {
-        buffer = Buffer::with_language(&lang);
-    }
-
-    let gio_file = gio::File::for_path(file_path);
-    let source_file = sv::File::new();
-    source_file.set_location(Some(&gio_file));
-
-    let loader = sv::FileLoader::new(&buffer, &source_file);
-    loader.load_async(
-        glib::Priority::DEFAULT,
-        None::<&gio::Cancellable>,
-        move |result| match result {
-            Ok(()) => println!("Loaded"),
-            Err(err) => eprintln!("Load failed: {err}"),
-        },
-    );
-    let spaces = TAB_WIDTH.chars().filter(|&c| c == ' ').count() as u32;
-    let indent_width = spaces as i32;
-    let view = View::with_buffer(&buffer);
-    view.set_show_line_numbers(true);
-    view.set_highlight_current_line(true);
-    view.set_auto_indent(true);
-    view.set_indent_width(indent_width);
-    view.set_tab_width(spaces);
-    view.set_insert_spaces_instead_of_tabs(true);
-    view.set_indent_on_tab(true);
-    view.set_smart_backspace(true);
-    view.set_monospace(true);
-
-    if let Some(lang) = lm.guess_language(Some(file_path), None) {
-        language_formatting(lang.to_string().as_str(), &view, &buffer);
-    }
-    install_br(&view, &buffer);
-    let manager = sv::StyleSchemeManager::default();
-    manager.append_search_path("themes");
-    manager.force_rescan();
-    if let Some(scheme) = manager.scheme("catpuccin-mocha") {
-        buffer.set_style_scheme(Some(&scheme));
-        SCHEME.with(|cell| {
-            *cell.borrow_mut() = Some(scheme.clone());
-        });
-    }
-    BUFFERS.with(|buffers| {
-        buffers.borrow_mut().push(buffer.clone());
-    });
-
-    let scrolled = ScrolledWindow::builder()
-        .child(&view)
-        // .min_content_height(300)
-        .build();
-    scrolled.set_vexpand(true);
-    scrolled.set_hexpand(true);
-
-    install_autosave(&buffer, file_path.to_string());
-
-    let tab = gtk::Label::new(Some("untitled"));
-    // notebook.append_page(&scrolled, Some(&tab));
-
-    build_body(&window, notebook);
-
+    build_formal(&window, notebook);
     window.present();
     set_caret_style();
 }
 
-fn toggle_term(paned: Paned, notebook: Notebook, parent: GtkBox) -> () {
-    if (TERMINAL.with(|v| v.get())) {
+fn toggle_term(paned: Paned, _notebook: Notebook, _parent: GtkBox) -> () {
+    if TERMINAL.with(|v| v.get())  {
         let term = vte::Terminal::new();
         term.set_hexpand(true);
         term.set_vexpand(true);
@@ -393,7 +326,7 @@ fn toggle_term(paned: Paned, notebook: Notebook, parent: GtkBox) -> () {
     }
 }
 
-fn build_header(window: &ApplicationWindow, notebook: Notebook) {
+fn build_window(window: &ApplicationWindow, notebook: Notebook) {
     let header = GtkBox::new(Orientation::Vertical, 10);
     let world = GtkBox::new(Orientation::Horizontal, 6);
     let parent = GtkBox::new(Orientation::Vertical, 8);
@@ -426,15 +359,15 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
             Some(&window_clone),
             None::<&gio::Cancellable>,
             move |result| {
-                let window3 = window2.clone();
+                let _window3 = window2.clone();
                 match result {
                     Ok(file) => {
                         if let Some(path) = file.path() {
                             let path2 = path.clone();
                             let path3 = path.clone();
                             let _ = fs::File::create(&path);
-                            let mut filename: &str;
-                            let mut tab = gtk::Box::new(Orientation::Horizontal, 0);
+                            let filename: &str;
+                            let tab = gtk::Box::new(Orientation::Horizontal, 0);
                             let source_file = sv::File::new();
                             source_file.set_location(Some(&file));
                             let lm = sv::LanguageManager::default();
@@ -556,7 +489,7 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
             .modal(true)
             .build();
         let nt = notebook0.clone();
-        let window_for_dialog = window0.clone();
+        let _window_for_dialog = window0.clone();
         dialog.open(
             Some(&window0),
             None::<&gio::Cancellable>,
@@ -566,8 +499,8 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
                         if let Some(path) = file.path() {
                             let path2 = path.clone();
                             let path3 = path.clone();
-                            let mut filename: &str;
-                            let mut tab = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+                            let filename: &str;
+                            let tab = gtk::Box::new(Orientation::Horizontal, 8);
                             let source_file = sv::File::new();
                             source_file.set_location(Some(&file));
                             let lm = sv::LanguageManager::default();
@@ -653,10 +586,13 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
     window.add_action(&newfile);
 
     let menu_button = MenuButton::builder()
-        .label("File")
+        .label("")
         .menu_model(&menu)
         .has_frame(false)
         .build();
+    menu_button.set_always_show_arrow(false);
+    menu_button.set_can_shrink(true);
+    menu_button.set_has_frame(false);
     /*
         let view_menu = gio::Menu::new();
         view_menu.append(Some("Reformat Code"), Some("win.format"));
@@ -677,8 +613,8 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
     let term = gtk::Button::builder()
         .label("")
         .build();
-    let window2 = window.clone();
-    let window3 = window.clone();
+    let _window2 = window.clone();
+    let _window3 = window.clone();
     let notebook5 = notebook4.clone();
     let paned = Paned::new(Orientation::Vertical);
     paned.set_hexpand(true);
@@ -702,10 +638,6 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
     let manager = sv::StyleSchemeManager::default();
     manager.append_search_path("themes");
     manager.force_rescan();
-
-    let theme_btn = sv::StyleSchemeChooserButton::new();
-    theme_btn.add_css_class("theme-btn");
-    // theme_btn.set_label("");
     if let Some(scheme) = manager.scheme("catppuccin-mocha") {
         BUFFERS.with(|buffers| {
             for buffer in buffers.borrow().iter() {
@@ -716,9 +648,11 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
             *cell.borrow_mut() = Some(scheme.clone());
         });
         println!("changed scheme");
-        theme_btn.set_style_scheme(&scheme);
-        // theme_btn.set_label("");
     }
+    /* let theme_btn = sv::StyleSchemeChooserButton::new();
+    theme_btn.add_css_class("theme-btn");
+    // theme_btn.set_label("");
+
 
     // let buffer_for_theme = buffer.clone();
     theme_btn.connect_style_scheme_notify(move |btn| {
@@ -743,17 +677,63 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
                 }
             }
         }
+    }); */
+    let button = gtk::Button::with_label("");
+
+    let window2 = window.clone();
+    button.connect_clicked(move |_| {
+        let chooser = sv::StyleSchemeChooserWidget::new();
+        let scrolled = ScrolledWindow::new();
+        scrolled.set_child(Some(&chooser));
+        let dialog = gtk::Dialog::builder()
+            .transient_for(&window2)
+            .modal(true)
+            .default_width(400)
+            .default_height(400)
+            .title("Choose theme")
+            .build();
+        scrolled.set_vexpand(true);
+        scrolled.set_hexpand(true);
+        dialog.content_area().append(&scrolled);
+        dialog.add_button("Close", gtk::ResponseType::Close);
+        chooser.connect_style_scheme_notify(move |c| {
+            let scheme = c.style_scheme();
+            BUFFERS.with(|buffers| {
+                for buffer in buffers.borrow().iter() {
+                    buffer.set_style_scheme(Some(&scheme));
+                }
+            });
+            SCHEME.with(|cell| {
+                *cell.borrow_mut() = Some(scheme.clone());
+            });
+            println!("{}", scheme);
+            if let Some(style) = scheme.style("text") {
+                if let Some(bg) = style.background() {
+                    if let Some(color) = style.foreground() {
+                        if let Some(style2) = scheme.style("selection") {
+                            if let Some(fg) = style2.background() {
+                                update_css(bg.as_str(), color.as_str(), fg.as_str());
+                                // println!("There should be css next");
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        dialog.connect_response(|d, _| d.close());
+        dialog.present();
     });
     menu_button.add_css_class("file");
     // menu_button2.add_css_class("view-btn");
-    theme_btn.add_css_class("theme");
+    button.add_css_class("theme");
     term.add_css_class("run");
-    let spacer = GtkBox::new(Orientation::Horizontal, 0);
-    spacer.set_hexpand(true);
+    let spacer = GtkBox::new(Orientation::Vertical, 0);
+    spacer.set_vexpand(true);
     header.append(&menu_button);
     // header.append(&menu_button2);
     header.append(&spacer);
-    header.append(&theme_btn);
+    header.append(&button);
     header.append(&term);
     header.add_css_class("header");
     notebook4.add_css_class("notebook");
@@ -763,9 +743,7 @@ fn build_header(window: &ApplicationWindow, notebook: Notebook) {
     window.set_child(Some(&world));
 }
 
-fn build_body(window: &ApplicationWindow, notebook: Notebook) {
+fn build_formal(window: &ApplicationWindow, notebook: Notebook) {
     let notebook2 = notebook.clone();
-    build_header(&window, notebook2);
-    // view.add_css_class("view");
-    // world.append(&sidebar);
+    build_window(&window, notebook2);
 }
