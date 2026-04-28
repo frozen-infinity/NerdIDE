@@ -10,6 +10,7 @@ use std::fs;
 use vte4 as vte;
 use vte::prelude::*;
 use gtk::{Settings};
+use std::process::Command;
 fn set_caret_style() {
     let display = gdk::Display::default().expect("No display");
     let settings = Settings::for_display(&display);
@@ -34,6 +35,8 @@ thread_local! {
     static VARS_PROVIDER: RefCell<Option<CssProvider>> = const { RefCell::new(None) };
 }
 use std::cell::{Cell};
+// use sourceview5::ffi::gtk_source_print_compositor_get_line_numbers_font_name;
+// use gtk::AccessibleRole::Command;
 
 thread_local! {
     static TERMINAL: Cell<bool> = const { Cell::new(false) };
@@ -75,6 +78,45 @@ fn update_css(color: &str, text: &str, fg:&str) {
         }
     });
 }
+
+fn underline_error (buffer: &Buffer, path: String) {
+    let check = Command::new("g++")
+        .arg(&path)
+        .arg("-fsyntax-only")
+        .arg("-fmessage-length=0")
+        .arg("-fno-diagnostics-show-option")
+        .output()
+        .expect("failed to execute process");
+
+    let tag = if let Some(tag) = buffer.tag_table().lookup("error-underline") {
+        tag
+    } else {
+        let tag = buffer
+            .create_tag(Some("error-underline"), &[])
+            .expect("failed to create tag");
+        tag.set_underline(pango::Underline::Error);
+        tag.set_underline_rgba(Some(&gdk::RGBA::new(1.0, 0.0, 0.0, 1.0)));
+        tag.set_background_rgba(Some(&gdk::RGBA::new(1.0, 0.0, 0.0, 0.18)));
+        // tag.set_priority(999);
+        tag
+    };
+    let (start, end) = buffer.bounds();
+    buffer.remove_tag_by_name("error-underline", &start, &end);
+    let s = String::from_utf8(check.clone().stderr).unwrap();
+    for line in s.lines() {
+        if let Some(first) = line.find(':') {
+            if let Some(second) = line[first + 1..].find(':') {
+                let code_line = &line[first + 1..first + second + 1].parse::<i32>().unwrap_or_else(|_| 1);
+                if let Some(line_start) = buffer.iter_at_line(code_line - 1) {
+                    let mut line_end = line_start;
+                    line_end.forward_to_line_end();
+                    println!("{}", code_line);
+                    buffer.apply_tag(&tag, &line_start, &line_end);
+                }
+            }
+        }
+    }
+}
 fn install_autosave(buffer: &Buffer, path: String) {
     let pending_save: Rc<RefCell<Option<glib::SourceId>>> = Rc::new(RefCell::new(None));
 
@@ -90,11 +132,10 @@ fn install_autosave(buffer: &Buffer, path: String) {
         let buffer_for_save = buffer_clone.clone();
         let path_for_save = path.clone();
         let pending_save_for_save = pending_save_clone.clone();
-
-        let id = glib::timeout_add_local_once(Duration::from_millis(700), move || {
+        let path2 = path.clone();
+        let id = glib::timeout_add_local_once(Duration::from_millis(400), move || {
             let (start, end) = buffer_for_save.bounds();
             let text = buffer_for_save.text(&start, &end, true);
-
             match fs::write(path_for_save.as_str(), text.as_str()) {
                 Ok(()) => {
                     buffer_for_save.set_modified(false);
@@ -102,6 +143,12 @@ fn install_autosave(buffer: &Buffer, path: String) {
                 }
                 Err(err) => {
                     eprintln!("autosave failed: {err}");
+                }
+            }
+            let lm = sv::LanguageManager::default();
+            if let Some(lang) = lm.guess_language(Some(path2.clone().as_str()), None) {
+                if lang.to_string() == "C++" {
+                    underline_error(&buffer_for_save, path2.clone().as_str().to_string());
                 }
             }
 
