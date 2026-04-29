@@ -30,7 +30,7 @@ use sourceview5::{Buffer, View};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
-
+use std::thread;
 thread_local! {
     static VARS_PROVIDER: RefCell<Option<CssProvider>> = const { RefCell::new(None) };
 }
@@ -40,6 +40,7 @@ use std::cell::{Cell};
 
 thread_local! {
     static TERMINAL: Cell<bool> = const { Cell::new(false) };
+    static TERMINAL2: Cell<bool> = const { Cell::new(false) };
     static SCHEME: RefCell<Option<sv::StyleScheme>> = const { RefCell::new(None) };
     static BUFFERS: RefCell<Vec<Buffer>> = const { RefCell::new(Vec::new()) };
 }
@@ -79,38 +80,85 @@ fn update_css(color: &str, text: &str, fg:&str) {
     });
 }
 
-fn underline_error (buffer: &Buffer, path: String) {
-    let check = Command::new("g++")
-        .arg(&path)
-        .arg("-fsyntax-only")
-        .arg("-fmessage-length=0")
-        .arg("-fno-diagnostics-show-option")
-        .output()
-        .expect("failed to execute process");
+use std::{
+    sync::mpsc,
+};
 
+use glib::ControlFlow;
+use gtk::prelude::*;
+
+fn underline_error(buffer: &Buffer, path: String) {
+    let (tx, rx) = mpsc::channel::<String>();
+
+    // Run g++ in the background.
+    thread::spawn(move || {
+        let stderr = Command::new("g++")
+            .arg(&path)
+            .arg("-fsyntax-only")
+            .arg("-fmessage-length=0")
+            .arg("-fno-diagnostics-show-option")
+            .output()
+            .map(|out| String::from_utf8_lossy(&out.stderr).to_string())
+            .unwrap_or_else(|err| {
+                eprintln!("failed to run g++: {err}");
+                String::new()
+            });
+
+        let _ = tx.send(stderr);
+    });
+
+    // Keep GTK work on the main thread.
+    let buffer = buffer.clone();
+
+    glib::timeout_add_local(Duration::from_millis(30), move || {
+        match rx.try_recv() {
+            Ok(stderr) => {
+                apply_error_underlines(&buffer, &stderr);
+                ControlFlow::Break
+            }
+
+            Err(mpsc::TryRecvError::Empty) => {
+                // g++ is still running; keep checking.
+                ControlFlow::Continue
+            }
+
+            Err(mpsc::TryRecvError::Disconnected) => {
+                ControlFlow::Break
+            }
+        }
+    });
+}
+
+fn apply_error_underlines(buffer: &Buffer, stderr: &str) {
     let tag = if let Some(tag) = buffer.tag_table().lookup("error-underline") {
         tag
     } else {
         let tag = buffer
             .create_tag(Some("error-underline"), &[])
             .expect("failed to create tag");
+
         tag.set_underline(pango::Underline::Error);
         tag.set_underline_rgba(Some(&gdk::RGBA::new(1.0, 0.0, 0.0, 1.0)));
         tag.set_background_rgba(Some(&gdk::RGBA::new(1.0, 0.0, 0.0, 0.18)));
-        // tag.set_priority(999);
+
         tag
     };
+
     let (start, end) = buffer.bounds();
     buffer.remove_tag_by_name("error-underline", &start, &end);
-    let s = String::from_utf8(check.clone().stderr).unwrap();
-    for line in s.lines() {
+
+    for line in stderr.lines() {
+        // Usually: file.cpp:12:4: error: ...
         if let Some(first) = line.find(':') {
             if let Some(second) = line[first + 1..].find(':') {
-                let code_line = &line[first + 1..first + second + 1].parse::<i32>().unwrap_or_else(|_| 1);
+                let line_number_text = &line[first + 1..first + second + 1];
+
+                let code_line = line_number_text.parse::<i32>().unwrap_or(1);
+
                 if let Some(line_start) = buffer.iter_at_line(code_line - 1) {
                     let mut line_end = line_start;
                     line_end.forward_to_line_end();
-                    println!("{}", code_line);
+
                     buffer.apply_tag(&tag, &line_start, &line_end);
                 }
             }
@@ -133,7 +181,7 @@ fn install_autosave(buffer: &Buffer, path: String) {
         let path_for_save = path.clone();
         let pending_save_for_save = pending_save_clone.clone();
         let path2 = path.clone();
-        let id = glib::timeout_add_local_once(Duration::from_millis(400), move || {
+        let id = glib::timeout_add_local_once(Duration::from_millis(0), move || {
             let (start, end) = buffer_for_save.bounds();
             let text = buffer_for_save.text(&start, &end, true);
             match fs::write(path_for_save.as_str(), text.as_str()) {
@@ -334,7 +382,7 @@ fn build_ui(app: &Application, _build_footer: bool) {
     set_caret_style();
 }
 
-fn toggle_term(paned: Paned, _notebook: Notebook, _parent: GtkBox) -> () {
+fn toggle_term(updown: Paned, _notebook: Notebook, _parent: GtkBox) -> () {
     if TERMINAL.with(|v| v.get())  {
         let term = vte::Terminal::new();
         term.set_hexpand(true);
@@ -344,10 +392,9 @@ fn toggle_term(paned: Paned, _notebook: Notebook, _parent: GtkBox) -> () {
         term.set_input_enabled(true);
         let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
         let argv = [shell.as_str()];
-
         term.spawn_async(
             vte::PtyFlags::DEFAULT,
-            None,
+            Some("~"),
             &argv,
             &[],
             glib::SpawnFlags::DEFAULT,
@@ -366,12 +413,53 @@ fn toggle_term(paned: Paned, _notebook: Notebook, _parent: GtkBox) -> () {
         });
         term.add_css_class("term");
         println!("Added notebook");
-        paned.set_end_child(Some(&term));
+        updown.set_end_child(Some(&term));
     }
     else {
-        paned.set_end_child(None::<&gtk::Widget>);
+        updown.set_end_child(None::<&gtk::Widget>);
     }
 }
+
+// new func
+
+fn toggle_term2(leftright: Paned, _notebook: Notebook, _parent: GtkBox) -> () {
+    if TERMINAL2.with(|v| v.get())  {
+        let term = vte::Terminal::new();
+        term.set_hexpand(true);
+        term.set_vexpand(true);
+        term.set_scrollback_lines(10_000);
+        term.set_scroll_on_output(true);
+        term.set_input_enabled(true);
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".to_string());
+        let argv = [shell.as_str()];
+        term.spawn_async(
+            vte::PtyFlags::DEFAULT,
+            Some("~"),
+            &argv,
+            &[],
+            glib::SpawnFlags::DEFAULT,
+            || {},
+            -1,
+            None::<&gio::Cancellable>,
+            |result| match result {
+                Ok(_) => println!("Shell started"),
+                Err(err) => eprintln!("Failed to start shell: {err}"),
+            },
+        );
+
+        let term_for_focus = term.clone();
+        glib::idle_add_local_once(move || {
+            term_for_focus.grab_focus();
+        });
+        term.add_css_class("term");
+        println!("Added notebook");
+        leftright.set_end_child(Some(&term));
+    }
+    else {
+        leftright.set_end_child(None::<&gtk::Widget>);
+    }
+}
+
 
 fn build_window(window: &ApplicationWindow, notebook: Notebook) {
     let header = GtkBox::new(Orientation::Vertical, 10);
@@ -640,47 +728,47 @@ fn build_window(window: &ApplicationWindow, notebook: Notebook) {
     menu_button.set_always_show_arrow(false);
     menu_button.set_can_shrink(true);
     menu_button.set_has_frame(false);
-    /*
-        let view_menu = gio::Menu::new();
-        view_menu.append(Some("Reformat Code"), Some("win.format"));
-        view_menu.append(Some("Toggle line numbers"), Some("win.linenumbers"));
-
-        let ln = gio::SimpleAction::new("linenumbers", None);
-        let view1 = view.clone();
-        ln.connect_activate(move |_, _| {
-            view1.set_show_line_numbers(!view1.shows_line_numbers());
-        });
-        window.add_action(&ln);
-        let menu_button2 = MenuButton::builder()
-            .label("View")
-            .menu_model(&view_menu)
-            .has_frame(false)
-            .build();
-    */
     let term = gtk::Button::builder()
-        .label("")
+        .label(" 󱂩 ")
+        .build();
+    let right = gtk::Button::builder()
+        .label("  ")
         .build();
     let _window2 = window.clone();
     let _window3 = window.clone();
     let notebook5 = notebook4.clone();
-    let paned = Paned::new(Orientation::Vertical);
-    paned.set_hexpand(true);
-    paned.set_vexpand(true);
-    paned.set_resize_start_child(true);
-    paned.set_resize_end_child(true);
-    paned.set_shrink_start_child(true);
-    paned.set_shrink_end_child(true);
+    let leftright = Paned::new(Orientation::Horizontal);
+    let updown = Paned::new(Orientation::Vertical);
+    updown.set_hexpand(true);
+    updown.set_vexpand(true);
+    updown.set_resize_start_child(true);
+    updown.set_resize_end_child(true);
+    updown.set_shrink_start_child(true);
+    updown.set_shrink_end_child(true);
+    leftright.set_hexpand(true);
+    leftright.set_vexpand(true);
+    leftright.set_resize_start_child(true);
+    leftright.set_resize_end_child(true);
+    leftright.set_shrink_start_child(true);
+    leftright.set_shrink_end_child(true);
+    leftright.set_start_child(Some(&updown));
     let parent2 = parent.clone();
     world.set_hexpand(true);
     world.set_vexpand(true);
     parent.set_hexpand(true);
     parent.set_vexpand(true);
-    toggle_term(paned.clone(), notebook5.clone(), parent2.clone());
-    paned.set_start_child(Some(&notebook5));
-    parent.append(&paned);
+    toggle_term(updown.clone(), notebook5.clone(), parent2.clone());
+    updown.set_start_child(Some(&notebook5));
+    parent.append(&leftright);
+    let notebook6 = notebook5.clone();
+    let parent3 = parent2.clone();
     term.connect_clicked(move |_| {
         TERMINAL.with(|v| v.set(!v.get()));
-        toggle_term(paned.clone(), notebook5.clone(), parent2.clone());
+        toggle_term(updown.clone(), notebook5.clone(), parent2.clone());
+    });
+    right.connect_clicked(move |_| {
+        TERMINAL2.with(|v| v.set(!v.get()));
+        toggle_term2(leftright.clone(), notebook6.clone(), parent3.clone());
     });
     let manager = sv::StyleSchemeManager::default();
     manager.append_search_path("themes");
@@ -696,35 +784,6 @@ fn build_window(window: &ApplicationWindow, notebook: Notebook) {
         });
         println!("changed scheme");
     }
-    /* let theme_btn = sv::StyleSchemeChooserButton::new();
-    theme_btn.add_css_class("theme-btn");
-    // theme_btn.set_label("");
-
-
-    // let buffer_for_theme = buffer.clone();
-    theme_btn.connect_style_scheme_notify(move |btn| {
-        let scheme = btn.style_scheme();
-        BUFFERS.with(|buffers| {
-            for buffer in buffers.borrow().iter() {
-                buffer.set_style_scheme(Some(&scheme));
-            }
-        });
-        SCHEME.with(|cell| {
-            *cell.borrow_mut() = Some(scheme.clone());
-        });
-        if let Some(style) = scheme.style("text") {
-            if let Some(bg) = style.background() {
-                if let Some(color) = style.foreground() {
-                    if let Some(style2) = scheme.style("selection") {
-                        if let Some(fg) = style2.background() {
-                            update_css(bg.as_str(), color.as_str(), fg.as_str());
-                            println!("There should be css next");
-                        }
-                    }
-                }
-            }
-        }
-    }); */
     let button = gtk::Button::with_label("");
 
     let window2 = window.clone();
@@ -775,6 +834,7 @@ fn build_window(window: &ApplicationWindow, notebook: Notebook) {
     // menu_button2.add_css_class("view-btn");
     button.add_css_class("theme");
     term.add_css_class("run");
+    right.add_css_class("run");
     let spacer = GtkBox::new(Orientation::Vertical, 0);
     spacer.set_vexpand(true);
     header.append(&menu_button);
@@ -782,6 +842,7 @@ fn build_window(window: &ApplicationWindow, notebook: Notebook) {
     header.append(&spacer);
     header.append(&button);
     header.append(&term);
+    header.append(&right);
     header.add_css_class("header");
     notebook4.add_css_class("notebook");
     header.set_hexpand(false);
