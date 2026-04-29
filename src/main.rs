@@ -292,7 +292,8 @@ fn install_br(view: &View, buffer: &Buffer) {
 
 fn main() -> glib::ExitCode {
     let app = Application::builder().application_id(APP_ID).build();
-    app.connect_startup(|_app| {
+    let app2 = app.clone();
+    app.connect_startup(|app| {
         load_css();
     });
     app.connect_activate(|app| {
@@ -377,7 +378,7 @@ fn build_ui(app: &Application, _build_footer: bool) {
     notebook.set_scrollable(true);
     notebook.set_hexpand(true);
     notebook.set_vexpand(true);
-    build_formal(&window, notebook);
+    build_formal(&window, notebook, &app.clone());
     window.present();
     set_caret_style();
 }
@@ -461,8 +462,7 @@ fn toggle_term2(leftright: Paned, _notebook: Notebook, _parent: GtkBox) -> () {
 }
 
 
-fn build_window(window: &ApplicationWindow, notebook: Notebook) {
-    let header = GtkBox::new(Orientation::Vertical, 10);
+fn build_window(window: &ApplicationWindow, notebook: Notebook, app: &Application) {
     let world = GtkBox::new(Orientation::Horizontal, 6);
     let parent = GtkBox::new(Orientation::Vertical, 8);
     world.add_css_class("world");
@@ -472,14 +472,30 @@ fn build_window(window: &ApplicationWindow, notebook: Notebook) {
     world.set_hexpand(true);
     world.set_vexpand(true);
     parent.set_vexpand(true);
+    let menubar = gio::Menu::new();
+
     let menu = gio::Menu::new();
-    menu.append(Some("Open"), Some("win.open"));
-    menu.append(Some("Save as"), Some("win.saveas"));
     menu.append(Some("New File"), Some("win.newfile"));
+    menu.append(Some("Open…"), Some("win.open"));
+    menu.append(Some("Save As…"), Some("win.saveas"));
+
+    menubar.append_submenu(Some("File"), &menu);
+
+    let view_menu = gio::Menu::new();
+    view_menu.append(Some("Change theme"), Some("win.theme"));
+    view_menu.append(Some("Toggle bottom terminal"), Some("win.termdown"));
+    view_menu.append(Some("Toggle right terminal"), Some("win.termright"));
+
+    menubar.append_submenu(Some("View"), &view_menu);
+
+    app.set_menubar(Some(&menubar));
 
     let window_clone = window.clone();
     let save_as = gio::SimpleAction::new("saveas", None);
     let newfile = gio::SimpleAction::new("newfile", None);
+    let theme_act = gio::SimpleAction::new("theme", None);
+    let termdown = gio::SimpleAction::new("termdown", None);
+    let termright = gio::SimpleAction::new("termright", None);
 
     newfile.connect_activate(move |_, _| {
         let dialog = gtk::FileDialog::builder()
@@ -615,9 +631,7 @@ fn build_window(window: &ApplicationWindow, notebook: Notebook) {
             },
         );
     });
-
     let open_action = gio::SimpleAction::new("open", None);
-
     open_action.connect_activate(move |_, _| {
         let dialog = gtk::FileDialog::builder()
             .title("Choose a file")
@@ -716,12 +730,15 @@ fn build_window(window: &ApplicationWindow, notebook: Notebook) {
         );
     });
 
+    app.add_action(&open_action);
+    app.add_action(&save_as);
+    app.add_action(&newfile);
     window.add_action(&open_action);
     window.add_action(&save_as);
     window.add_action(&newfile);
-
     let menu_button = MenuButton::builder()
         .label("")
+        // .label("File")
         .menu_model(&menu)
         .has_frame(false)
         .build();
@@ -762,11 +779,11 @@ fn build_window(window: &ApplicationWindow, notebook: Notebook) {
     parent.append(&leftright);
     let notebook6 = notebook5.clone();
     let parent3 = parent2.clone();
-    term.connect_clicked(move |_| {
+    termdown.connect_activate(move |_, _| {
         TERMINAL.with(|v| v.set(!v.get()));
         toggle_term(updown.clone(), notebook5.clone(), parent2.clone());
     });
-    right.connect_clicked(move |_| {
+    termright.connect_activate(move |_, _| {
         TERMINAL2.with(|v| v.set(!v.get()));
         toggle_term2(leftright.clone(), notebook6.clone(), parent3.clone());
     });
@@ -787,7 +804,7 @@ fn build_window(window: &ApplicationWindow, notebook: Notebook) {
     let button = gtk::Button::with_label("");
 
     let window2 = window.clone();
-    button.connect_clicked(move |_| {
+    theme_act.connect_activate(move |_, _| {
         let chooser = sv::StyleSchemeChooserWidget::new();
         let scrolled = ScrolledWindow::new();
         scrolled.set_child(Some(&chooser));
@@ -826,32 +843,26 @@ fn build_window(window: &ApplicationWindow, notebook: Notebook) {
                 }
             }
         });
-
         dialog.connect_response(|d, _| d.close());
         dialog.present();
     });
     menu_button.add_css_class("file");
     // menu_button2.add_css_class("view-btn");
     button.add_css_class("theme");
+    window.add_action(&theme_act);
+    window.add_action(&termdown);
+    window.add_action(&termright);
     term.add_css_class("run");
     right.add_css_class("run");
     let spacer = GtkBox::new(Orientation::Vertical, 0);
     spacer.set_vexpand(true);
-    header.append(&menu_button);
-    // header.append(&menu_button2);
-    header.append(&spacer);
-    header.append(&button);
-    header.append(&term);
-    header.append(&right);
-    header.add_css_class("header");
     notebook4.add_css_class("notebook");
-    header.set_hexpand(false);
-    world.append(&header);
+    window.set_show_menubar(true);
     world.append(&parent);
     window.set_child(Some(&world));
 }
 
-fn build_formal(window: &ApplicationWindow, notebook: Notebook) {
+fn build_formal(window: &ApplicationWindow, notebook: Notebook, app: &Application) {
     let notebook2 = notebook.clone();
-    build_window(&window, notebook2);
+    build_window(&window, notebook2, &app.clone());
 }

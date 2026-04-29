@@ -5,6 +5,11 @@
 }
 .world {
     background-color: var(--fg);
+    background-image: url("../assets/NerdIDE.png");
+    background-position: center;
+    background-repeat: no-repeat;
+    height: 100vh;
+    width: 100vw;
 }
 
 .header {
@@ -54,6 +59,9 @@ notebook > header > tabs > tab:checked {
 .notebook > header {
     background-color: var(--bg);
     border: none;
+    margin: 5px;
+    margin-bottom: 0px;
+    margin-top: 0px;
     border-radius: 10px;
 }
 
